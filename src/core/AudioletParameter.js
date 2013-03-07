@@ -28,7 +28,7 @@ var AudioletParameter = AudioletClass.extend({
         else {
             this.input = null;
         }
-        this.value = value || 0;
+        this.setValue(value || 0);
     },
 
     /**
@@ -56,6 +56,7 @@ var AudioletParameter = AudioletClass.extend({
      */
     setValue: function(value) {
         this.value = value;
+        this.trigger('change', value);
     },
 
     /**
@@ -69,6 +70,30 @@ var AudioletParameter = AudioletClass.extend({
         }
         else {
             return this.value;
+        }
+    },
+
+    on: function(e, fn) {
+        this._events = this._events || {};
+        this._events[e] = this._events[e] || [];
+        this._events[e].push(fn);
+    },
+
+    off: function(e, fn) {
+        this._events = this._events || {};
+        if (e in this._events === false) {
+            return;
+        }
+        this._events[e].splice(this._events[e].indexOf(fn), 1);
+    },
+
+    trigger: function(e) {
+        this._events = this._events || {};
+        if (e in this._events === false) {
+            return;
+        }
+        for (var i = 0; i < this._events[e].length; i++) {
+            this._events[e][i].apply(this, Array.prototype.slice.call(arguments, 1));
         }
     }
 
