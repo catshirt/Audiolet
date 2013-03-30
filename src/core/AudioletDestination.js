@@ -31,6 +31,8 @@ var AudioletDestination = AudioletGroup.extend({
         audiolet.device = this.device; // Shortcut
         this.scheduler = new Scheduler(audiolet);
         audiolet.scheduler = this.scheduler; // Shortcut
+        this.midiClock = new MidiClock(this.scheduler);
+        audiolet.midiClock = this.midiClock; // Shortcut
 
         this.upMixer = new UpMixer(audiolet, this.device.numberOfChannels);
 

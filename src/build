@@ -6,4 +6,4 @@ then
     cd ../
 fi
 
-juicer merge core/*.js dsp/*.js operators/*.js pattern/*.js scale/*.js tuning/*.js sink.js/*.js -f -s -m none -o audiolet/Audiolet.js
+juicer merge core/*.js dsp/*.js midi/*.js operators/*.js pattern/*.js scale/*.js tuning/*.js sink.js/*.js teoria/dist/teoria.js -f -s -m none -o audiolet/Audiolet.js

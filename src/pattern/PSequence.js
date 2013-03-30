@@ -54,6 +54,25 @@ var PSequence = Pattern.extend({
         return (returnValue);
     },
 
+    peek: function() {
+        var returnValue;
+        if (this.position < this.repeats * this.list.length) {
+            var index = (this.position + this.offset) % this.list.length;
+            var item = this.list[index];
+            var value = this.valueOf(item);
+            if (value != null) {
+                returnValue = value;
+            }
+            else {
+                returnValue = this.next();
+            }
+        }
+        else {
+            returnValue = null;
+        }
+        return (returnValue);
+    },
+
     /**
      * Reset the pattern
      */
