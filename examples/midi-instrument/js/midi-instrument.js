@@ -13,7 +13,7 @@ function playInstrument() {
         instrument = new MidiInstrument(audiolet, [MidiVoice]);
 
     instrument.connect(audiolet.output);
-    instrument.noteOn(new MidiNoteOnEvent(0, 60, 127));
+    instrument.noteOn(new MIDI.Events.NoteOn(60, 127));
 
 };
 
@@ -39,11 +39,13 @@ function playTrack() {
 
 function playMidi() {
 
-    var midi = new MIDI({
+    var header = {
         formatType: 0,
         trackCount: 1,
         ticksPerBeat: 96
-    }, [[
+    };
+
+    var track = [
         new MIDI.Events.TrackName(''),
         new MIDI.Events.TimeSignature(4, 4, 36, 8),
         new MIDI.Events.NoteOn(65, 100),
@@ -51,25 +53,26 @@ function playMidi() {
         new MIDI.Events.NoteOn(70, 100, 168),
         new MIDI.Events.NoteOff(70, 64, 24),
         new MIDI.Events.EndOfTrack()
-    ]]);
+    ];
 
-    var audiolet = new Audiolet(),
+    var midi = new MIDI(header, [track]),
+        audiolet = new Audiolet(),
         midiPlayer = new MidiPlayer(audiolet, midi);
 
     midiPlayer.connect(audiolet.output);
     midiPlayer.play();
 
-    window.midi = midi;
-
 };
 
 function writeMidi() {
 
-    var midi = new MIDI({
+    var header = {
         formatType: 0,
         trackCount: 1,
         ticksPerBeat: 96
-    }, [[
+    };
+
+    var track = [
         new MIDI.Events.TrackName(''),
         new MIDI.Events.TimeSignature(4, 4, 36, 8),
         new MIDI.Events.NoteOn(65, 100),
@@ -77,8 +80,10 @@ function writeMidi() {
         new MIDI.Events.NoteOn(70, 100, 168),
         new MIDI.Events.NoteOff(70, 64, 24),
         new MIDI.Events.EndOfTrack()
-    ]]);
+    ];
 
-    return midi.write();
+    var midi = new MIDI(header, [track]);
+
+    console.log(midi.write());
 
 };

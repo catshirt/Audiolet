@@ -4,3 +4,6 @@
 [submodule "src/teoria"]
 	path = src/teoria
 	url = git@github.com:saebekassebil/teoria.git
+[submodule "src/midi.js"]
+	path = src/midi.js
+	url = git@github.com:catshirt/midi.js.git
