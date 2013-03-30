@@ -518,6 +518,8 @@ var AudioletDestination = AudioletGroup.extend({
         audiolet.device = this.device; // Shortcut
         this.scheduler = new Scheduler(audiolet);
         audiolet.scheduler = this.scheduler; // Shortcut
+        this.midiClock = new MidiClock(this.scheduler);
+        audiolet.midiClock = this.midiClock; // Shortcut
 
         this.upMixer = new UpMixer(audiolet, this.device.numberOfChannels);
 
@@ -4857,6 +4859,272 @@ var WhiteNoise = AudioletNode.extend({
 
 });
 /*!
+ * @depends ../core/AudioletClass.js
+ */
+
+var MidiClock = AudioletClass.extend({
+
+  constructor: function(scheduler) {
+    AudioletClass.apply(this);
+    this.scheduler = scheduler;
+  },
+
+  sequence: function(events, cb, ticksPerBeat) {
+    // midi clock ticks 24 (or n) times per beat
+    var tick = 1 / (ticksPerBeat || 96),
+      sequence = new PSequence(events, Infinity),
+      relative_tick = 0;
+    this.scheduler.play([], tick, function() {
+      var to_process = [],
+        processing, type, method;
+      while (sequence.peek().time == relative_tick) {
+        to_process.push(sequence.next());
+      };
+      if (to_process.length) {
+        for (var i = 0; i < to_process.length; i++) {
+          cb(to_process[i]);
+        }
+        relative_tick = 0;
+      } else {
+        relative_tick++;
+      }
+    });
+  }
+
+});
+/*!
+ * @depends ../core/AudioletGroup.js
+ */
+
+var MidiInstrument = AudioletGroup.extend({
+
+  constructor: function(audiolet, Voices) {
+    AudioletGroup.apply(this, [audiolet, 0, 1]);
+    this.Voices = Voices;
+    this.Voice = Voices[0];
+    this.voices = {};
+  },
+
+  noteOn: function(e) {
+    var Voice = this.Voice,
+      voice = new Voice(this.audiolet, e.number, e.velocity);
+      voices_by_note = this.voices,
+      voices = voices_by_note[e.number] = voices_by_note[e.number] || [];
+
+    voices.push(voice);
+    voice.connect(this.outputs[0]);
+  },
+
+  noteOff: function(e) {
+    var voices = this.voices,
+      note_voices = voices[e.number],
+      voice = note_voices.pop();
+    
+    voice.remove();
+  },
+
+  programChange: function(e) {
+    var Voices = this.Voices,
+      Voice = Voices[e.number];
+      
+    this.Voice = Voice;
+  },
+
+  play: function(track, ticksPerBeat) {
+    var self = this,
+      audiolet = this.audiolet,
+      midi_clock = audiolet.midiClock;
+    midi_clock.sequence(track, function(e) {
+      var name = e.name || e.type,
+        cb = self[name];
+      cb && cb.apply(self, [e]);
+    }, ticksPerBeat);
+  }
+
+});
+/*!
+ * @depends ../core/AudioletGroup.js
+ */
+
+var MidiPlayer = AudioletGroup.extend({
+
+  constructor: function(audiolet, midi) {
+    var header = midi.header,
+      track_count = header.trackCount;
+    AudioletGroup.apply(this, [audiolet, 0, track_count]);
+    this.midi = midi;
+    this.instruments = [];
+
+    for (var i = 0; i < this.outputs.length; i++) {
+      var instrument = new MidiInstrument(audiolet, [MidiVoice]);
+      this.instruments[i] = instrument;
+      instrument.connect(this.outputs[i]);
+    }
+  },
+
+  play: function() {
+    var midi = this.midi,
+      tracks = midi.tracks,
+      instruments = this.instruments,
+      ticksPerBeat = midi.header.ticksPerBeat,
+      track, instrument;
+    for (var i = 0; i < tracks.length; i++) {
+      track = tracks[i];
+      instrument = instruments[i];
+      instrument.play(track, ticksPerBeat);
+    };
+  }
+
+});
+/*!
+ * @depends ../core/AudioletGroup.js
+ */
+
+var MidiVoice = AudioletGroup.extend({
+
+  keysByNote: {
+    0: 'c-1',
+    1: 'c#-1',
+    2: 'd-1',
+    3: 'd#-1',
+    4: 'e-1',
+    5: 'f-1',
+    6: 'f#-1',
+    7: 'g-1',
+    8: 'g#-1',
+    9: 'a-1',
+    10: 'a#-1',
+    11: 'b-1',
+    12: 'c0',
+    13: 'c#0',
+    14: 'd0',
+    15: 'd#0',
+    16: 'e0',
+    17: 'f0',
+    18: 'f#0',
+    19: 'g0',
+    20: 'g#0',
+    21: 'a0',
+    22: 'a#0',
+    23: 'b0',
+    24: 'c1',
+    25: 'c#1',
+    26: 'd1',
+    27: 'd#1',
+    28: 'e1',
+    29: 'f1',
+    30: 'f#1',
+    31: 'g1',
+    32: 'g#1',
+    33: 'a1',
+    34: 'a#1',
+    35: 'b1',
+    36: 'c2',
+    37: 'c#2',
+    38: 'd2',
+    39: 'd#2',
+    40: 'e2',
+    41: 'f2',
+    42: 'f#2',
+    43: 'g2',
+    44: 'g#2',
+    45: 'a2',
+    46: 'a#2',
+    47: 'b2',
+    48: 'c3',
+    49: 'c#3',
+    50: 'd3',
+    51: 'd#3',
+    52: 'e3',
+    53: 'f3',
+    54: 'f#3',
+    55: 'g3',
+    56: 'g#3',
+    57: 'a3',
+    58: 'a#3',
+    59: 'b3',
+    60: 'c4',
+    61: 'c#4',
+    62: 'd4',
+    63: 'd#4',
+    64: 'e4',
+    65: 'f4',
+    66: 'f#4',
+    67: 'g4',
+    68: 'g#4',
+    69: 'a4',
+    70: 'a#4',
+    71: 'b4',
+    72: 'c5',
+    73: 'c#5',
+    74: 'd5',
+    75: 'd#5',
+    76: 'e5',
+    77: 'f5',
+    78: 'f#5',
+    79: 'g5',
+    80: 'g#5',
+    81: 'a5',
+    82: 'a#5',
+    83: 'b5',
+    84: 'c6',
+    85: 'c#6',
+    86: 'd6',
+    87: 'd#6',
+    88: 'e6',
+    89: 'f6',
+    90: 'f#6',
+    91: 'g6',
+    92: 'g#6',
+    93: 'a6',
+    94: 'a#6',
+    95: 'b6',
+    96: 'c7',
+    97: 'c#7',
+    98: 'd7',
+    99: 'd#7',
+    100: 'e7',
+    101: 'f7',
+    102: 'f#7',
+    103: 'g7',
+    104: 'g#7',
+    105: 'a7',
+    106: 'a#7',
+    107: 'b7',
+    108: 'c8',
+    109: 'c#8',
+    110: 'd8',
+    111: 'd#8',
+    112: 'e8',
+    113: 'f8',
+    114: 'f#8',
+    115: 'g8',
+    116: 'g#8',
+    117: 'a8',
+    118: 'a#8',
+    119: 'b8',
+    120: 'c9',
+    121: 'c#9',
+    122: 'd9',
+    123: 'd#9',
+    124: 'e9',
+    125: 'f9',
+    126: 'f#9',
+    127: 'g9'
+  },
+
+  constructor: function(audiolet, number, velocity) {
+    AudioletGroup.apply(this, [audiolet, 0, 1]);
+    var key = this.keysByNote[number];
+    this.source = new Sine(audiolet, teoria.note(key).fq());
+    this.gain = new Gain(audiolet, (1 / 127) * velocity);
+
+    this.source.connect(this.gain);
+    this.gain.connect(this.outputs[0]);
+  }
+
+});
+/*!
  * @depends ../core/AudioletNode.js
  */
 
@@ -5683,6 +5951,25 @@ var PSequence = Pattern.extend({
                     item.reset();
                 }
                 this.position += 1;
+                returnValue = this.next();
+            }
+        }
+        else {
+            returnValue = null;
+        }
+        return (returnValue);
+    },
+
+    peek: function() {
+        var returnValue;
+        if (this.position < this.repeats * this.list.length) {
+            var index = (this.position + this.offset) % this.list.length;
+            var item = this.list[index];
+            var value = this.valueOf(item);
+            if (value != null) {
+                returnValue = value;
+            }
+            else {
                 returnValue = this.next();
             }
         }
@@ -7626,3 +7913,2399 @@ proto.getSyncWriteOffset = function () {
 
 } (this.Sink);
 
+/*jshint unused:false */
+
+//    Teoria.js
+//    http://saebekassebil.github.com/teoria
+//    Copyright Jakob Miland (saebekassebil)
+//    Teoria may be freely distributed under the MIT License.
+
+(function teoriaClosure() {
+  'use strict';
+
+  var teoria = {};
+
+  var kNotes = {
+    'c': {
+      name: 'c',
+      distance: 0,
+      index: 0
+    },
+    'd': {
+      name: 'd',
+      distance: 2,
+      index: 1
+    },
+    'e': {
+      name: 'e',
+      distance: 4,
+      index: 2
+    },
+    'f': {
+      name: 'f',
+      distance: 5,
+      index: 3
+    },
+    'g': {
+      name: 'g',
+      distance: 7,
+      index: 4
+    },
+    'a': {
+      name: 'a',
+      distance: 9,
+      index: 5
+    },
+    'b': {
+      name: 'b',
+      distance: 11,
+      index: 6
+    },
+    'h': {
+      name: 'h',
+      distance: 11,
+      index: 6
+    }
+  };
+
+  var kNoteIndex = ['c', 'd', 'e', 'f', 'g', 'a', 'b'];
+
+  var kDurations = {
+    '0.25': 'longa',
+    '0.5': 'breve',
+    '1': 'whole',
+    '2': 'half',
+    '4': 'quarter',
+    '8': 'eighth',
+    '16': 'sixteenth',
+    '32': 'thirty-second',
+    '64': 'sixty-fourth',
+    '128': 'hundred-twenty-eighth'
+  };
+
+  var kIntervals = [{
+    name: 'first',
+    quality: 'perfect',
+    size: 0
+  }, {
+    name: 'second',
+    quality: 'minor',
+    size: 1
+  }, {
+    name: 'third',
+    quality: 'minor',
+    size: 3
+  }, {
+    name: 'fourth',
+    quality: 'perfect',
+    size: 5
+  }, {
+    name: 'fifth',
+    quality: 'perfect',
+    size: 7
+  }, {
+    name: 'sixth',
+    quality: 'minor',
+    size: 8
+  }, {
+    name: 'seventh',
+    quality: 'minor',
+    size: 10
+  }, {
+    name: 'octave',
+    quality: 'perfect',
+    size: 12
+  }];
+
+  var kIntervalIndex = {
+    'first': 0, 'second': 1, 'third': 2, 'fourth': 3,
+    'fifth': 4, 'sixth': 5, 'seventh': 6, 'octave': 7,
+    'ninth': 8, 'tenth': 9, 'eleventh': 10, 'twelfth': 11,
+    'thirteenth': 12, 'fourteenth': 13, 'fifteenth': 14
+  };
+
+  var kQualityLong = {
+    'P': 'perfect',
+    'M': 'major',
+    'm': 'minor',
+    '-': 'minor',
+    'A': 'augmented',
+    '+': 'augmented',
+    'AA': 'doubly augmented',
+    'd': 'diminished',
+    'dd': 'doubly diminished',
+
+    'min': 'minor',
+    'aug': 'augmented',
+    'dim': 'diminished'
+  };
+
+  var kQualityTemp = {
+    'perfect': 'P',
+    'major': 'M',
+    'minor': 'm',
+    'augmented': 'A',
+    'doubly augmented': 'AA',
+    'diminished': 'd',
+    'doubly diminished': 'dd'
+  };
+
+  var kValidQualities = {
+    perfect: {
+      'doubly diminished': -2,
+      diminished: -1,
+      perfect: 0,
+      augmented: 1,
+      'doubly augmented': 2
+    },
+
+    minor: {
+      'doubly diminished': -2,
+      diminished: -1,
+      minor: 0,
+      major: 1,
+      augmented: 2,
+      'doubly augmented': 3
+    }
+  };
+
+  var kQualityInversion = {
+    'perfect': 'perfect',
+    'major': 'minor',
+    'minor': 'major',
+    'augmented': 'diminished',
+    'doubly augmented': 'doubly diminished',
+    'diminished': 'augmented',
+    'doubly diminished': 'doubly augmented'
+  };
+
+  var kAlterations = {
+    perfect: ['doubly diminished', 'diminished', 'perfect',
+              'augmented', 'doubly augmented'],
+
+    minor: ['doubly diminished', 'diminished', 'minor',
+            'major', 'augmented', 'doubly augmented']
+  };
+
+  var kSymbols = {
+    'min': ['m3', 'P5'],
+    'm': ['m3', 'P5'],
+    '-': ['m3', 'P5'],
+
+    'M': ['M3', 'P5'],
+    '': ['M3', 'P5'],
+
+    '+': ['M3', 'A5'],
+    'aug': ['M3', 'A5'],
+
+    'dim': ['m3', 'd5'],
+    'o': ['m3', 'd5'],
+
+    'maj': ['M3', 'P5', 'M7'],
+    'dom': ['M3', 'P5', 'm7'],
+    'ø': ['m3', 'd5', 'm7'],
+
+    '5': ['P5']
+  };
+
+  var kChordShort = {
+    'major': 'M',
+    'minor': 'm',
+    'augmented': 'aug',
+    'diminished': 'dim',
+    'half-diminished': '7b5',
+    'power': '5',
+    'dominant': '7'
+  };
+
+  var kAccidentalSign = {
+    '-2': 'bb',
+    '-1': 'b',
+    '0': '',
+    '1': '#',
+    '2': 'x'
+  };
+
+  var kAccidentalValue = {
+    'bb': -2,
+    'b': -1,
+    '#': 1,
+    'x': 2
+  };
+
+  var kStepNumber = {
+    'first': '1',
+    'tonic': '1',
+    'second': '2',
+    'third': '3',
+    'fourth': '4',
+    'fifth': '5',
+    'sixth': '6',
+    'seventh': '7',
+    'ninth': '9',
+    'eleventh': '11',
+    'thirteenth': '13'
+  };
+
+  // Adjusted Shearer syllables - Chromatic solfege system
+  // Some intervals are not provided for. These include:
+  // dd2 - Doubly diminished second
+  // dd3 - Doubly diminished third
+  // AA3 - Doubly augmented third
+  // dd6 - Doubly diminished sixth
+  // dd7 - Doubly diminished seventh
+  // AA7 - Doubly augmented seventh
+  var kIntervalSolfege = {
+    'dd1': 'daw',
+    'd1': 'de',
+    'P1': 'do',
+    'A1': 'di',
+    'AA1': 'dai',
+    'd2': 'raw',
+    'm2': 'ra',
+    'M2': 're',
+    'A2': 'ri',
+    'AA2': 'rai',
+    'd3': 'maw',
+    'm3': 'me',
+    'M3': 'mi',
+    'A3': 'mai',
+    'dd4': 'faw',
+    'd4': 'fe',
+    'P4': 'fa',
+    'A4': 'fi',
+    'AA4': 'fai',
+    'dd5': 'saw',
+    'd5': 'se',
+    'P5': 'so',
+    'A5': 'si',
+    'AA5': 'sai',
+    'd6': 'law',
+    'm6': 'le',
+    'M6': 'la',
+    'A6': 'li',
+    'AA6': 'lai',
+    'd7': 'taw',
+    'm7': 'te',
+    'M7': 'ti',
+    'A7': 'tai',
+    'dd8': 'daw',
+    'd8': 'de',
+    'P8': 'do',
+    'A8': 'di',
+    'AA8': 'dai'
+  };
+  /**
+   * getDistance, returns the distance in semitones between two notes
+   */
+  function getDistance(from, to) {
+    from = kNotes[from];
+    to = kNotes[to];
+    if (from.distance > to.distance) {
+      return (to.distance + 12) - from.distance;
+    } else {
+      return to.distance - from.distance;
+    }
+  }
+
+  function pad(str, ch, len) {
+    for (; len > 0; len--) {
+      str += ch;
+    }
+
+    return str;
+  }
+
+  // teoria.note namespace - All notes should be instantiated
+  // through this function.
+  teoria.note = function(name, duration) {
+    return new TeoriaNote(name, duration);
+  };
+
+  teoria.note.fromKey = function(key) {
+    var octave = Math.floor((key - 4) / 12);
+    var distance = key - (octave * 12) - 4;
+    var note = kNotes[kNoteIndex[Math.round(distance / 2)]];
+    var name = note.name;
+    if (note.distance < distance) {
+      name += '#';
+    } else if (note.distance > distance) {
+      name += 'b';
+    }
+
+    return teoria.note(name + (octave + 1));
+  };
+
+  teoria.note.fromFrequency = function(fq, concertPitch) {
+    var key, cents, originalFq;
+    concertPitch = concertPitch || 440;
+
+    key = 49 + 12 * ((Math.log(fq) - Math.log(concertPitch)) / Math.log(2));
+    key = Math.round(key);
+    originalFq = concertPitch * Math.pow(2, (key - 49) / 12);
+    cents = 1200 * (Math.log(fq / originalFq) / Math.log(2));
+
+    return {note: teoria.note.fromKey(key), cents: cents};
+  };
+
+  teoria.note.fromMIDI = function(note) {
+    return teoria.note.fromKey(note - 20);
+  };
+
+  // teoria.chord namespace - All chords should be instantiated
+  // through this function.
+  teoria.chord = function(name, symbol) {
+    if (typeof name === 'string') {
+      var root, octave;
+      root = name.match(/^([a-h])(x|#|bb|b?)/i);
+      if (root && root[0]) {
+        octave = typeof symbol === 'number' ? symbol.toString(10) : '4';
+        return new TeoriaChord(teoria.note(root[0].toLowerCase() + octave),
+                              name.substr(root[0].length));
+      }
+    } else if (name instanceof TeoriaNote) {
+      return new TeoriaChord(name, symbol || '');
+    }
+
+    throw new Error('Invalid Chord. Couldn\'t find note name');
+  };
+
+  /**
+   * teoria.interval
+   *
+   * Sugar function for #from and #between methods, with the possibility to
+   * declare a interval by its string name: P8, M3, m7 etc.
+   */
+  teoria.interval = function(from, to, direction) {
+    var quality, intervalNumber, interval, match;
+
+    // Construct a TeoriaInterval object from string representation
+    if (typeof from === 'string') {
+      match = from.match(/^(AA|A|P|M|m|d|dd)(-?\d+)$/);
+      if (!match) {
+        throw new Error('Invalid string-interval format');
+      }
+
+      quality = kQualityLong[match[1]];
+      intervalNumber = parseInt(match[2], 10);
+
+      // Uses the second argument 'to', as direction
+      direction = to === 'down' || intervalNumber < 0 ? 'down' : 'up';
+
+      return new TeoriaInterval(Math.abs(intervalNumber), quality, direction);
+    }
+
+    if (typeof to === 'string' && from instanceof TeoriaNote) {
+      interval = teoria.interval(to, direction);
+
+      return teoria.interval.from(from, interval);
+    } else if (to instanceof TeoriaNote && from instanceof TeoriaNote) {
+      return teoria.interval.between(from, to);
+    } else {
+      throw new Error('Invalid parameters');
+    }
+  };
+
+  /**
+   * Returns the note from a given note (from), with a given interval (to)
+   */
+  teoria.interval.from = function(from, to) {
+    var note, diff, octave, index, dist, intval, dir;
+    dir = (to.direction === 'down') ? -1 : 1;
+
+    intval = to.simpleInterval - 1;
+    intval = dir * intval;
+
+    index = kNotes[from.name].index + intval;
+
+    if (index > kNoteIndex.length - 1) {
+      index = index - kNoteIndex.length;
+    } else if (index < 0) {
+      index = index + kNoteIndex.length;
+    }
+
+    note = kNoteIndex[index];
+    dist = getDistance(from.name, note);
+
+    if (dir > 0) {
+      diff = to.simpleIntervalType.size + to.qualityValue() - dist;
+    } else {
+      diff = getDistance(note, from.name) -
+        (to.simpleIntervalType.size + to.qualityValue());
+    }
+    diff += from.accidental.value;
+
+    octave = Math.floor((from.key() - from.accidental.value + dist - 4) / 12);
+    octave += 1 + dir * to.compoundOctaves;
+
+    if (diff >= 10) {
+      diff -= 12;
+    } else if (diff <= -10) {
+      diff += 12;
+    }
+
+    if (to.simpleInterval === 8) {
+      octave += dir;
+    } else if (dir < 0) {
+      octave--;
+    }
+
+    note += kAccidentalSign[diff];
+    return teoria.note(note + octave.toString(10));
+  };
+
+  /**
+   * Returns the interval between two instances of teoria.note
+   */
+  teoria.interval.between = function(from, to) {
+    var semitones, interval, intervalInt, quality,
+        alteration, direction = 'up', dir = 1;
+
+    semitones = to.key() - from.key();
+    intervalInt = to.key(true) - from.key(true);
+
+    if (intervalInt < 0) {
+      intervalInt = -intervalInt;
+      direction = 'down';
+      dir = -1;
+    }
+
+    interval = kIntervals[intervalInt % 7];
+    alteration = kAlterations[interval.quality];
+    quality = alteration[(dir * semitones - interval.size + 2) % 12];
+
+    return new TeoriaInterval(intervalInt + 1, quality, direction);
+  };
+
+  teoria.interval.invert = function(sInterval) {
+    return teoria.interval(sInterval).invert().toString();
+  };
+
+  // teoria.scale namespace - Scales are constructed through this function.
+  teoria.scale = function(tonic, scale) {
+    if (!(tonic instanceof TeoriaNote)) {
+      tonic = teoria.note(tonic);
+    }
+
+    return new TeoriaScale(tonic, scale);
+  };
+
+  teoria.scale.scales = {};
+
+  /**
+   * TeoriaNote - teoria.note - the note object
+   *
+   * This object is the representation of a note.
+   * The constructor must be called with a name,
+   * and optionally a duration argument.
+   * The first parameter (name) can be specified in either
+   * scientific notation (name+accidentals+octave). Fx:
+   *    A4 - Cb3 - D#8 - Hbb - etc.
+   * Or in the Helmholtz notation:
+   *    C,, - f#'' - d - Eb - etc.
+   * The second argument must be an object literal, with a
+   * 'value' property and/or a 'dots' property. By default,
+   * the duration value is 4 (quarter note) and dots is 0.
+   */
+  function TeoriaNote(name, duration) {
+    if (typeof name !== 'string') {
+      return null;
+    }
+
+    duration = duration || {};
+
+    this.name = name;
+    this.duration = {value: duration.value || 4, dots: duration.dots || 0};
+    this.accidental = {value: 0, sign: ''};
+    var scientific = /^([a-h])(x|#|bb|b?)(-?\d*)/i;
+    var helmholtz = /^([a-h])(x|#|bb|b?)([,\']*)$/i;
+    var accidentalSign, accidentalValue, noteName, octave;
+
+    // Start trying to parse scientific notation
+    var parser = name.match(scientific);
+    if (parser && name === parser[0] && parser[3].length !== 0) { // Scientific
+      noteName = parser[1].toLowerCase();
+      octave = parseInt(parser[3], 10);
+
+      if (parser[2].length > 0) {
+        accidentalSign = parser[2].toLowerCase();
+        accidentalValue = kAccidentalValue[parser[2]];
+      }
+    } else { // Helmholtz Notation
+      name = name.replace(/\u2032/g, "'").replace(/\u0375/g, ',');
+
+      parser = name.match(helmholtz);
+      if (!parser || name !== parser[0]) {
+        throw new Error('Invalid note format');
+      }
+
+      noteName = parser[1];
+      octave = parser[3];
+      if (parser[2].length > 0) {
+        accidentalSign = parser[2].toLowerCase();
+        accidentalValue = kAccidentalValue[parser[2]];
+      }
+
+      if (octave.length === 0) { // no octave symbols
+        octave = (noteName === noteName.toLowerCase()) ? 3 : 2;
+      } else {
+        if (octave.match(/^'+$/)) {
+          if (noteName === noteName.toUpperCase()) { // If upper-case
+            throw new Error('Format must respect the Helmholtz notation');
+          }
+
+          octave = 3 + octave.length;
+        } else if (octave.match(/^,+$/)) {
+          if (noteName === noteName.toLowerCase()) { // If lower-case
+            throw new Error('Format must respect the Helmholtz notation');
+          }
+
+          octave = 2 - octave.length;
+        } else {
+          throw new Error('Invalid characters after note name.');
+        }
+      }
+    }
+
+    this.name = noteName.toLowerCase();
+    this.octave = octave;
+
+    if (accidentalSign) {
+      this.accidental.value = accidentalValue;
+      this.accidental.sign = accidentalSign;
+    }
+  }
+
+  TeoriaNote.prototype = {
+    /**
+     * Returns the key number of the note
+     */
+    key: function(whitenotes) {
+      var noteValue;
+      if (whitenotes) {
+        noteValue = Math.ceil(kNotes[this.name].distance / 2);
+        return (this.octave - 1) * 7 + 3 + noteValue;
+      } else {
+        noteValue = kNotes[this.name].distance + this.accidental.value;
+        return (this.octave - 1) * 12 + 4 + noteValue;
+      }
+    },
+
+    /**
+     * Calculates and returns the frequency of the note.
+     * Optional concert pitch (def. 440)
+     */
+    fq: function(concertPitch) {
+      concertPitch = concertPitch || 440;
+
+      return concertPitch * Math.pow(2, (this.key() - 49) / 12);
+    },
+
+    /**
+     * Returns the pitch class index (chroma) of the note
+     */
+    chroma: function() {
+      var value = (kNotes[this.name].distance + this.accidental.value) % 12;
+      return (value < 0) ? value + 12 : value;
+    },
+
+    /**
+     * Sugar function for teoria.scale(note, scale)
+     */
+    scale: function(scale) {
+      return teoria.scale(this, scale);
+    },
+
+    /**
+     * Sugar function for teoria.interval(note, interval[, direction])
+     */
+    interval: function(interval, direction) {
+      return teoria.interval(this, interval, direction);
+    },
+
+    /**
+     * Transposes the note, returned by TeoriaNote#interval
+     */
+    transpose: function(interval, direction) {
+      var note = teoria.interval(this, interval, direction);
+      this.name = note.name;
+      this.octave = note.octave;
+      this.accidental = note.accidental;
+
+      return this;
+    },
+
+    /**
+     * Returns a TeoriaChord object with this note as root
+     */
+    chord: function(chord) {
+      chord = (chord in kChordShort) ? kChordShort[chord] : chord;
+
+      return new TeoriaChord(this, chord);
+    },
+
+    /**
+     * Returns the Helmholtz notation form of the note (fx C,, d' F# g#'')
+     */
+    helmholtz: function() {
+      var name = (this.octave < 3) ? this.name.toUpperCase() :
+                                     this.name.toLowerCase();
+      var paddingChar = (this.octave < 3) ? ',' : '\'';
+      var paddingCount = (this.octave < 2) ? 2 - this.octave : this.octave - 3;
+
+      return pad(name + this.accidental.sign, paddingChar, paddingCount);
+    },
+
+    /**
+     * Returns the scientific notation form of the note (fx E4, Bb3, C#7 etc.)
+     */
+    scientific: function() {
+      return this.name.toUpperCase() + this.accidental.sign + this.octave;
+    },
+
+    /**
+     * Returns notes that are enharmonic with this note.
+     */
+    enharmonics: function() {
+      var enharmonics = [], key = this.key(),
+      upper = this.interval('m2', 'up'), lower = this.interval('m2', 'down');
+      var upperKey = upper.key() - upper.accidental.value;
+      var lowerKey = lower.key() - lower.accidental.value;
+      var diff = key - upperKey;
+      if (diff < 3 && diff > -3) {
+        upper.accidental = {value: diff, sign: kAccidentalSign[diff]};
+        enharmonics.push(upper);
+      }
+
+      diff = key - lowerKey;
+      if (diff < 3 && diff > -3) {
+        lower.accidental = {value: diff, sign: kAccidentalSign[diff]};
+        enharmonics.push(lower);
+      }
+
+      return enharmonics;
+    },
+
+    solfege: function(scale, showOctaves) {
+      if (!(scale instanceof TeoriaScale)) {
+        throw new Error('Invalid Scale');
+      }
+
+      var interval = scale.tonic.interval(this), solfege, stroke, count;
+      if (interval.direction === 'down') {
+        interval = interval.invert();
+      }
+
+      if (showOctaves) {
+        count = (this.key(true) - scale.tonic.key(true)) / 7;
+        count = (count >= 0) ? Math.floor(count) : -(Math.ceil(-count));
+        stroke = (count >= 0) ? '\'' : ',';
+      }
+
+      solfege = kIntervalSolfege[interval.simple(true)];
+      return (showOctaves) ? pad(solfege, stroke, Math.abs(count)) : solfege;
+    },
+
+    /**
+     * Returns the name of the duration value,
+     * such as 'whole', 'quarter', 'sixteenth' etc.
+     */
+    durationName: function() {
+      return kDurations[this.duration.value];
+    },
+
+    /**
+     * Returns the duration of the note (including dots)
+     * in seconds. The first argument is the tempo in beats
+     * per minute, the second is the beat unit (i.e. the
+     * lower numeral in a time signature).
+     */
+    durationInSeconds: function(bpm, beatUnit) {
+      var secs = (60 / bpm) / (this.duration.value / 4) / (beatUnit / 4);
+      return secs * 2 - secs / Math.pow(2, this.duration.dots);
+    },
+
+    /**
+     * Returns the degree of this note in a given scale
+     * If the scale doesn't contain this note, the scale degree
+     * will be returned as 0 allowing for expressions such as:
+     * if (teoria.note('a').scaleDegree(teoria.scale('a', 'major'))) {
+     *   ...
+     * }
+     *
+     * as 0 evaluates to false in boolean context
+     **/
+    scaleDegree: function(scale) {
+      var interval = scale.tonic.interval(this);
+      interval = (interval.direction === 'down' ||
+                  interval.simpleInterval === 8) ? interval.invert() : interval;
+
+      return scale.scale.indexOf(interval.simple(true)) + 1;
+    },
+
+    /**
+     * Returns the name of the note, with an optional display of octave number
+     */
+    toString: function(dontShow) {
+      var octave = dontShow ? '' : this.octave;
+      return this.name.toLowerCase() + this.accidental.sign + octave;
+    }
+  };
+
+
+  function TeoriaInterval(intervalNum, quality, direction) {
+    var simple = (intervalNum >= 8 && intervalNum % 7 === 1) ?
+          intervalNum % 7 * 8 : ((intervalNum - 1) % 7) + 1;
+    var compoundOctaves = Math.ceil((intervalNum - simple) / 8);
+    var simpleIntervalType = kIntervals[simple - 1];
+
+
+    if (!(quality in kValidQualities[simpleIntervalType.quality])) {
+      throw new Error('Invalid interval quality');
+    }
+
+    this.interval = intervalNum;
+    this.quality = quality;
+    this.direction = direction === 'down' ? 'down' : 'up';
+    this.simpleInterval = simple;
+    this.simpleIntervalType = simpleIntervalType;
+    this.compoundOctaves = compoundOctaves;
+  }
+
+  TeoriaInterval.prototype = {
+    semitones: function() {
+      return this.simpleIntervalType.size + this.qualityValue() +
+              this.compoundOctaves * 12;
+    },
+
+    simple: function(ignore) {
+      var intval = this.simpleInterval;
+      intval = (this.direction === 'down' && !ignore) ? -intval : intval;
+
+      return kQualityTemp[this.quality] + intval.toString();
+    },
+
+    compound: function(ignore) {
+      var intval = this.simpleInterval + this.compoundOctaves * 7;
+      intval = (this.direction === 'down' && !ignore) ? -intval : intval;
+
+      return kQualityTemp[this.quality] + intval.toString();
+    },
+
+    isCompound: function() {
+      return this.compoundOctaves > 0;
+    },
+
+    invert: function() {
+      var intervalNumber = this.simpleInterval;
+
+      intervalNumber = 9 - intervalNumber;
+
+      return new TeoriaInterval(intervalNumber,
+                                kQualityInversion[this.quality], this.direction);
+    },
+
+    qualityValue: function() {
+      var defQuality = this.simpleIntervalType.quality, quality = this.quality;
+
+      return kValidQualities[defQuality][quality];
+    },
+
+    equal: function(interval) {
+      return this.interval === interval.interval &&
+             this.quality === interval.quality;
+    },
+
+    greater: function(interval) {
+      var thisSemitones = this.semitones();
+      var thatSemitones = interval.semitones();
+
+      // If equal in absolute size, measure which interval is bigger
+      // For example P4 is bigger than A3
+      return (thisSemitones === thatSemitones) ?
+        (this.interval > interval.interval) : (thisSemitones > thatSemitones);
+    },
+
+    smaller: function(interval) {
+      return !this.equal(interval) && !this.greater(interval);
+    },
+
+    toString: function() {
+      return this.compound();
+    }
+  };
+
+
+  function TeoriaChord(root, name) {
+    if (!(root instanceof TeoriaNote)) {
+      return null;
+    }
+
+    name = name || '';
+    this.name = root.name.toUpperCase() + root.accidental.sign + name;
+    this.symbol = name;
+    this.root = root;
+    this.intervals = [];
+    this._voicing = [];
+
+    var i, length, c, strQuality, parsing = 'quality', additionals = [],
+        notes = ['P1', 'M3', 'P5', 'm7', 'M9', 'P11', 'M13'],
+        chordLength = 2, bass, symbol;
+
+    function setChord(intervals) {
+      for (var n = 0, chordl = intervals.length; n < chordl; n++) {
+        notes[n + 1] = intervals[n];
+      }
+
+      chordLength = intervals.length;
+    }
+
+    // Remove whitespace, commas and parentheses
+    name = name.replace(/[,\s\(\)]/g, '');
+    bass = name.split('/');
+    if (bass.length === 2) {
+      name = bass[0];
+      bass = bass[1];
+    } else {
+      bass = null;
+    }
+
+    for (i = 0, length = name.length; i < length; i++) {
+      if (!(c = name[i])) {
+        break;
+      }
+
+      switch (parsing) {
+        // Parses for the "base" chord, either a triad or a seventh chord
+        case 'quality':
+          strQuality = ((i + 3) <= length) ? name.substr(i, 3) : null;
+          symbol = (strQuality in kSymbols) ?
+            strQuality : (c in kSymbols) ? c : '';
+
+          setChord(kSymbols[symbol]);
+
+          i += symbol.length - 1;
+          parsing = 'extension';
+          break;
+
+        // Parses for the top interval or a pure sixth
+        case 'extension':
+          c = (c === '1' && name[i + 1]) ?
+            parseFloat(name.substr(i, 2)) : parseFloat(c);
+
+          if (!isNaN(c) && c !== 6) {
+            chordLength = (c - 1) / 2;
+
+            if (chordLength !== Math.round(chordLength)) {
+              throw new Error('Invalid interval extension: ' + c.toString(10));
+            }
+
+            // Special care for diminished chords
+            if (symbol === 'o' || symbol === 'dim') {
+              notes[3] = 'd7';
+            }
+
+            i += String(c).length - 1;
+          } else if (c === 6) {
+            notes[3] = 'M6';
+            chordLength = (chordLength < 3) ? 3 : chordLength;
+          } else {
+            i -= 1;
+          }
+
+          parsing = 'alterations';
+          break;
+
+        // Parses for possible alterations of intervals (#5, b9, etc.)
+        case 'alterations':
+          var alterations = name.substr(i).split(/(#|b|add|maj|sus|M)/),
+              next, flat = false, sharp = false;
+
+          if (alterations.length === 1) {
+            throw new Error('Invalid alterations');
+          } else if (alterations[0].length !== 0) {
+            throw new Error('Invalid token: \'' + alterations[0] + '\'');
+          }
+
+          for (var a = 1, aLength = alterations.length; a < aLength; a++) {
+            next = alterations[a + 1];
+
+            switch (alterations[a]) {
+            case 'M':
+            case 'maj':
+              chordLength = (chordLength < 3) ? 3 : chordLength;
+
+              if (next === '7') { // Ignore the seventh, that is already implied
+                a++;
+              }
+
+              notes[3] = 'M7';
+              break;
+
+            case 'sus':
+              var type = 'P4';
+              if (next === '2' || next === '4') {
+                a++;
+
+                if (next === '2') {
+                  type = 'M2';
+                }
+              }
+
+              notes[1] = type; // Replace third with M2 or P4
+              break;
+
+            case 'add':
+              if (next && !isNaN(parseInt(next, 10))) {
+                if (next === '9') {
+                  additionals.push('M9');
+                } else if (next === '11') {
+                  additionals.push('P11');
+                } else if (next === '13') {
+                  additionals.push('M13');
+                }
+
+                a += next.length;
+              }
+              break;
+
+            case 'b':
+              flat = true;
+              break;
+
+            case '#':
+              sharp = true;
+              break;
+
+            default:
+              if (alterations[a].length === 0) {
+                break;
+              }
+
+              var token = parseInt(alterations[a], 10), quality,
+                  interval = parseInt(alterations[a], 10), intPos;
+              if (isNaN(token) ||
+                  String(token).length !== alterations[a].length) {
+                throw new Error('Invalid token: \'' + alterations[a] + '\'');
+              }
+
+              if (token === 6) {
+                if (sharp) {
+                  notes[3] = 'A6';
+                } else if (flat) {
+                  notes[3] = 'm6';
+                } else {
+                  notes[3] = 'M6';
+                }
+
+                chordLength = (chordLength < 3) ? 3 : chordLength;
+                continue;
+              }
+
+              // Calculate the position in the 'note' array
+              intPos = (interval - 1) / 2;
+              if (chordLength < intPos) {
+                chordLength = intPos;
+              }
+
+              if (interval < 5 || interval === 7 ||
+                  intPos !== Math.round(intPos)) {
+                throw new Error('Invalid interval alteration: ' +
+                    interval.toString(10));
+              }
+
+              quality = notes[intPos][0];
+
+              // Alterate the quality of the interval according the accidentals
+              if (sharp) {
+                if (quality === 'd') {
+                  quality = 'm';
+                } else if (quality === 'm') {
+                  quality = 'M';
+                } else if (quality === 'M' || quality === 'P') {
+                  quality = 'A';
+                }
+              } else if (flat) {
+                if (quality === 'A') {
+                  quality = 'M';
+                } else if (quality === 'M') {
+                  quality = 'm';
+                } else if (quality === 'm' || quality === 'P') {
+                  quality = 'd';
+                }
+              }
+
+              notes[intPos] = quality + interval;
+              break;
+            }
+          }
+
+          parsing = 'ended';
+          break;
+      }
+
+      if (parsing === 'ended') {
+        break;
+      }
+    }
+
+    this.intervals = notes
+      .slice(0, chordLength + 1)
+      .concat(additionals)
+      .map(function(i) { return teoria.interval(i); });
+
+    for (i = 0, length = this.intervals.length; i < length; i++) {
+      this._voicing[i] = this.intervals[i];
+    }
+
+    if (bass) {
+      var intervals = this.intervals, bassInterval, inserted = 0, note;
+      // Make sure the bass is atop of the root note
+      note = teoria.note(bass + (root.octave + 1));
+
+      bassInterval = teoria.interval.between(root, note);
+      bass = bassInterval.simpleInterval;
+
+      if (bassInterval.direction === 'up') {
+        bassInterval = bassInterval.invert();
+        bassInterval.direction = 'down';
+      }
+
+      this._voicing = [bassInterval];
+      for (i = 0; i < length; i++) {
+        if (intervals[i].interval === bass) {
+          continue;
+        }
+
+        inserted++;
+        this._voicing[inserted] = intervals[i];
+      }
+    }
+  }
+
+  TeoriaChord.prototype = {
+    notes: function() {
+      var voicing = this.voicing(), notes = [];
+
+      for (var i = 0, length = voicing.length; i < length; i++) {
+        notes.push(teoria.interval.from(this.root, voicing[i]));
+      }
+
+      return notes;
+    },
+
+    voicing: function(voicing) {
+      // Get the voicing
+      if (!voicing) {
+        return this._voicing;
+      }
+
+      // Set the voicing
+      this._voicing = [];
+      for (var i = 0, length = voicing.length; i < length; i++) {
+        this._voicing[i] = teoria.interval(voicing[i]);
+      }
+
+      return this;
+    },
+
+    resetVoicing: function() {
+      this._voicing = this.intervals;
+    },
+
+    dominant: function(additional) {
+      additional = additional || '';
+      return new TeoriaChord(this.root.interval('P5'), additional);
+    },
+
+    subdominant: function(additional) {
+      additional = additional || '';
+      return new TeoriaChord(this.root.interval('P4'), additional);
+    },
+
+    parallel: function(additional) {
+      additional = additional || '';
+      var quality = this.quality();
+
+      if (this.chordType() !== 'triad' || quality === 'diminished' ||
+          quality === 'augmented') {
+        throw new Error('Only major/minor triads have parallel chords');
+      }
+
+      if (quality === 'major') {
+        return new TeoriaChord(this.root.interval('m3', 'down'), 'm');
+      } else {
+        return new TeoriaChord(this.root.interval('m3', 'up'));
+      }
+    },
+
+    quality: function() {
+      var third, fifth, seventh, intervals = this.intervals;
+
+      for (var i = 0, length = intervals.length; i < length; i++) {
+        if (intervals[i].interval === 3) {
+          third = intervals[i];
+        } else if (intervals[i].interval === 5) {
+          fifth = intervals[i];
+        } else if (intervals[i].interval === 7) {
+          seventh = intervals[i];
+        }
+      }
+
+      if (!third) {
+        return;
+      }
+
+      third = (third.direction === 'down') ? third.invert() : third;
+      third = third.simple();
+
+      if (fifth) {
+        fifth = (fifth.direction === 'down') ? fifth.invert() : fifth;
+        fifth = fifth.simple();
+      }
+
+      if (seventh) {
+        seventh = (seventh.direction === 'down') ? seventh.invert() : seventh;
+        seventh = seventh.simple();
+      }
+
+      if (third === 'M3') {
+        if (fifth === 'A5') {
+          return 'augmented';
+        } else if (fifth === 'P5') {
+          return (seventh === 'm7') ? 'dominant' : 'major';
+        }
+
+        return 'major';
+      } else if (third === 'm3') {
+        if (fifth === 'P5') {
+          return 'minor';
+        } else if (fifth === 'd5') {
+          return (seventh === 'm7') ? 'half-diminished' : 'diminished';
+        }
+
+        return 'minor';
+      }
+    },
+
+    chordType: function() { // In need of better name
+      var length = this.intervals.length, interval, has, invert, i, name;
+
+      if (length === 2) {
+        return 'dyad';
+      } else if (length === 3) {
+        has = {first: false, third: false, fifth: false};
+        for (i = 0; i < length; i++) {
+          interval = this.intervals[i];
+          invert = interval.invert();
+          if (interval.simpleIntervalType.name in has) {
+            has[interval.simpleIntervalType.name] = true;
+          } else if (invert.simpleIntervalType.name in has) {
+            has[invert.simpleIntervalType.name] = true;
+          }
+        }
+
+        name = (has.first && has.third && has.fifth) ? 'triad' : 'trichord';
+      } else if (length === 4) {
+        has = {first: false, third: false, fifth: false, seventh: false};
+        for (i = 0; i < length; i++) {
+          interval = this.intervals[i];
+          invert = interval.invert();
+          if (interval.simpleIntervalType.name in has) {
+            has[interval.simpleIntervalType.name] = true;
+          } else if (invert.simpleIntervalType.name in has) {
+            has[invert.simpleIntervalType.name] = true;
+          }
+        }
+
+        if (has.first && has.third && has.fifth && has.seventh) {
+          name = 'tetrad';
+        }
+      }
+
+      return name || 'unknown';
+    },
+
+    get: function(interval) {
+      if (typeof interval === 'string' && interval in kStepNumber) {
+        var intervals = this.intervals, i, length;
+
+        interval = kStepNumber[interval];
+        for (i = 0, length = intervals.length; i < length; i++) {
+          if (intervals[i].interval === +interval) {
+            return teoria.interval.from(this.root, intervals[i]);
+          }
+        }
+
+        return null;
+      } else {
+        throw new Error('Invalid interval name');
+      }
+    },
+
+    interval: function(interval, direction) {
+      return new TeoriaChord(this.root.interval(interval, direction),
+                             this.symbol);
+    },
+
+    transpose: function(interval, direction) {
+      this.root.transpose(interval, direction);
+      this.name = this.root.name.toUpperCase() +
+                  this.root.accidental.sign + this.symbol;
+
+      return this;
+    },
+
+    toString: function() {
+      return this.name;
+    }
+  };
+
+
+  function TeoriaScale(tonic, scale) {
+    var scaleName, i, length;
+
+    if (!(tonic instanceof TeoriaNote)) {
+      throw new Error('Invalid Tonic');
+    }
+
+    if (typeof scale === 'string') {
+      scaleName = scale;
+      scale = teoria.scale.scales[scale];
+      if (!scale) {
+        throw new Error('Invalid Scale');
+      }
+    } else {
+      for (i in teoria.scale.scales) {
+        if (teoria.scale.scales.hasOwnProperty(i)) {
+          if (teoria.scale.scales[i].toString() === scale.toString()) {
+            scaleName = i;
+            break;
+          }
+        }
+      }
+    }
+
+    this.name = scaleName;
+    this.notes = [];
+    this.tonic = tonic;
+    this.scale = scale;
+
+    for (i = 0, length = scale.length; i < length; i++) {
+      this.notes.push(teoria.interval(tonic, scale[i]));
+    }
+  }
+
+  TeoriaScale.prototype = {
+    simple: function() {
+      var sNotes = [];
+
+      for (var i = 0, length = this.notes.length; i < length; i++) {
+        sNotes.push(this.notes[i].toString(true));
+      }
+
+      return sNotes;
+    },
+
+    type: function() {
+      var length = this.notes.length - 2;
+      if (length < 8) {
+        return ['di', 'tri', 'tetra', 'penta', 'hexa', 'hepta', 'octa'][length] +
+          'tonic';
+      }
+    },
+
+    get: function(i) {
+      if (typeof i === 'string' && i in kStepNumber) {
+        i = parseInt(kStepNumber[i], 10);
+      }
+
+      return this.notes[i - 1];
+    },
+
+    solfege: function(index, showOctaves) {
+      var i, length, solfegeArray = [];
+
+      // Return specific index in scale
+      if (index) {
+        return this.get(index).solfege(this, showOctaves);
+      }
+
+      // Return an array of solfege syllables
+      for (i = 0, length = this.notes.length; i < length; i++) {
+        solfegeArray.push(this.notes[i].solfege(this, showOctaves));
+      }
+
+      return solfegeArray;
+    },
+
+    interval: function(interval, direction) {
+      return new TeoriaScale(this.tonic.interval(interval, direction),
+                             this.scale);
+    },
+
+    transpose: function(interval, direction) {
+      var scale = new TeoriaScale(this.tonic.interval(interval, direction),
+                                  this.scale);
+      this.notes = scale.notes;
+      this.scale = scale.scale;
+      this.tonic = scale.tonic;
+
+      return this;
+    }
+  };
+
+
+  teoria.scale.scales.ionian = teoria.scale.scales.major =
+    ['P1', 'M2', 'M3', 'P4', 'P5', 'M6', 'M7'];
+  teoria.scale.scales.dorian = ['P1', 'M2', 'm3', 'P4', 'P5', 'M6', 'm7'];
+  teoria.scale.scales.phrygian = ['P1', 'm2', 'm3', 'P4', 'P5', 'm6', 'm7'];
+  teoria.scale.scales.lydian = ['P1', 'M2', 'M3', 'A4', 'P5', 'M6', 'M7'];
+  teoria.scale.scales.mixolydian = ['P1', 'M2', 'M3', 'P4', 'P5', 'M6', 'm7'];
+  teoria.scale.scales.aeolian = teoria.scale.scales.minor =
+    ['P1', 'M2', 'm3', 'P4', 'P5', 'm6', 'm7'];
+  teoria.scale.scales.locrian = ['P1', 'm2', 'm3', 'P4', 'd5', 'm6', 'm7'];
+  teoria.scale.scales.majorpentatonic = ['P1', 'M2', 'M3', 'P5', 'M6'];
+  teoria.scale.scales.minorpentatonic = ['P1', 'm3', 'P4', 'P5', 'm7'];
+  teoria.scale.scales.chromatic = teoria.scale.scales.harmonicchromatic =
+    ['P1', 'm2', 'M2', 'm3', 'M3', 'P4', 'A4', 'P5', 'm6', 'M6', 'm7', 'M7'];
+
+
+  teoria.TeoriaNote = TeoriaNote;
+  teoria.TeoriaChord = TeoriaChord;
+  teoria.TeoriaScale = TeoriaScale;
+  teoria.TeoriaInterval = TeoriaInterval;
+
+  if (typeof exports !== 'undefined') {
+    if (typeof module !== 'undefined' && module.exports) {
+      exports = module.exports = teoria;
+    }
+    exports.teoria = teoria;
+  } else if (typeof this !== 'undefined') {
+    this.teoria = teoria;
+  } else if (typeof window !== 'undefined') {
+    window.teoria = teoria;
+  }
+})();
+
+
+(function(exports) {
+/**
+ * almond 0.2.5 Copyright (c) 2011-2012, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/jrburke/almond for details
+ */
+//Going sloppy to avoid 'use strict' string cost, but strict practices should
+//be followed.
+/*jslint sloppy: true */
+/*global setTimeout: false */
+
+var requirejs, require, define;
+(function (undef) {
+    var main, req, makeMap, handlers,
+        defined = {},
+        waiting = {},
+        config = {},
+        defining = {},
+        hasOwn = Object.prototype.hasOwnProperty,
+        aps = [].slice;
+
+    function hasProp(obj, prop) {
+        return hasOwn.call(obj, prop);
+    }
+
+    /**
+     * Given a relative module name, like ./something, normalize it to
+     * a real name that can be mapped to a path.
+     * @param {String} name the relative name
+     * @param {String} baseName a real name that the name arg is relative
+     * to.
+     * @returns {String} normalized name
+     */
+    function normalize(name, baseName) {
+        var nameParts, nameSegment, mapValue, foundMap,
+            foundI, foundStarMap, starI, i, j, part,
+            baseParts = baseName && baseName.split("/"),
+            map = config.map,
+            starMap = (map && map['*']) || {};
+
+        //Adjust any relative paths.
+        if (name && name.charAt(0) === ".") {
+            //If have a base name, try to normalize against it,
+            //otherwise, assume it is a top-level require that will
+            //be relative to baseUrl in the end.
+            if (baseName) {
+                //Convert baseName to array, and lop off the last part,
+                //so that . matches that "directory" and not name of the baseName's
+                //module. For instance, baseName of "one/two/three", maps to
+                //"one/two/three.js", but we want the directory, "one/two" for
+                //this normalization.
+                baseParts = baseParts.slice(0, baseParts.length - 1);
+
+                name = baseParts.concat(name.split("/"));
+
+                //start trimDots
+                for (i = 0; i < name.length; i += 1) {
+                    part = name[i];
+                    if (part === ".") {
+                        name.splice(i, 1);
+                        i -= 1;
+                    } else if (part === "..") {
+                        if (i === 1 && (name[2] === '..' || name[0] === '..')) {
+                            //End of the line. Keep at least one non-dot
+                            //path segment at the front so it can be mapped
+                            //correctly to disk. Otherwise, there is likely
+                            //no path mapping for a path starting with '..'.
+                            //This can still fail, but catches the most reasonable
+                            //uses of ..
+                            break;
+                        } else if (i > 0) {
+                            name.splice(i - 1, 2);
+                            i -= 2;
+                        }
+                    }
+                }
+                //end trimDots
+
+                name = name.join("/");
+            } else if (name.indexOf('./') === 0) {
+                // No baseName, so this is ID is resolved relative
+                // to baseUrl, pull off the leading dot.
+                name = name.substring(2);
+            }
+        }
+
+        //Apply map config if available.
+        if ((baseParts || starMap) && map) {
+            nameParts = name.split('/');
+
+            for (i = nameParts.length; i > 0; i -= 1) {
+                nameSegment = nameParts.slice(0, i).join("/");
+
+                if (baseParts) {
+                    //Find the longest baseName segment match in the config.
+                    //So, do joins on the biggest to smallest lengths of baseParts.
+                    for (j = baseParts.length; j > 0; j -= 1) {
+                        mapValue = map[baseParts.slice(0, j).join('/')];
+
+                        //baseName segment has  config, find if it has one for
+                        //this name.
+                        if (mapValue) {
+                            mapValue = mapValue[nameSegment];
+                            if (mapValue) {
+                                //Match, update name to the new value.
+                                foundMap = mapValue;
+                                foundI = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (foundMap) {
+                    break;
+                }
+
+                //Check for a star map match, but just hold on to it,
+                //if there is a shorter segment match later in a matching
+                //config, then favor over this star map.
+                if (!foundStarMap && starMap && starMap[nameSegment]) {
+                    foundStarMap = starMap[nameSegment];
+                    starI = i;
+                }
+            }
+
+            if (!foundMap && foundStarMap) {
+                foundMap = foundStarMap;
+                foundI = starI;
+            }
+
+            if (foundMap) {
+                nameParts.splice(0, foundI, foundMap);
+                name = nameParts.join('/');
+            }
+        }
+
+        return name;
+    }
+
+    function makeRequire(relName, forceSync) {
+        return function () {
+            //A version of a require function that passes a moduleName
+            //value for items that may need to
+            //look up paths relative to the moduleName
+            return req.apply(undef, aps.call(arguments, 0).concat([relName, forceSync]));
+        };
+    }
+
+    function makeNormalize(relName) {
+        return function (name) {
+            return normalize(name, relName);
+        };
+    }
+
+    function makeLoad(depName) {
+        return function (value) {
+            defined[depName] = value;
+        };
+    }
+
+    function callDep(name) {
+        if (hasProp(waiting, name)) {
+            var args = waiting[name];
+            delete waiting[name];
+            defining[name] = true;
+            main.apply(undef, args);
+        }
+
+        if (!hasProp(defined, name) && !hasProp(defining, name)) {
+            throw new Error('No ' + name);
+        }
+        return defined[name];
+    }
+
+    //Turns a plugin!resource to [plugin, resource]
+    //with the plugin being undefined if the name
+    //did not have a plugin prefix.
+    function splitPrefix(name) {
+        var prefix,
+            index = name ? name.indexOf('!') : -1;
+        if (index > -1) {
+            prefix = name.substring(0, index);
+            name = name.substring(index + 1, name.length);
+        }
+        return [prefix, name];
+    }
+
+    /**
+     * Makes a name map, normalizing the name, and using a plugin
+     * for normalization if necessary. Grabs a ref to plugin
+     * too, as an optimization.
+     */
+    makeMap = function (name, relName) {
+        var plugin,
+            parts = splitPrefix(name),
+            prefix = parts[0];
+
+        name = parts[1];
+
+        if (prefix) {
+            prefix = normalize(prefix, relName);
+            plugin = callDep(prefix);
+        }
+
+        //Normalize according
+        if (prefix) {
+            if (plugin && plugin.normalize) {
+                name = plugin.normalize(name, makeNormalize(relName));
+            } else {
+                name = normalize(name, relName);
+            }
+        } else {
+            name = normalize(name, relName);
+            parts = splitPrefix(name);
+            prefix = parts[0];
+            name = parts[1];
+            if (prefix) {
+                plugin = callDep(prefix);
+            }
+        }
+
+        //Using ridiculous property names for space reasons
+        return {
+            f: prefix ? prefix + '!' + name : name, //fullName
+            n: name,
+            pr: prefix,
+            p: plugin
+        };
+    };
+
+    function makeConfig(name) {
+        return function () {
+            return (config && config.config && config.config[name]) || {};
+        };
+    }
+
+    handlers = {
+        require: function (name) {
+            return makeRequire(name);
+        },
+        exports: function (name) {
+            var e = defined[name];
+            if (typeof e !== 'undefined') {
+                return e;
+            } else {
+                return (defined[name] = {});
+            }
+        },
+        module: function (name) {
+            return {
+                id: name,
+                uri: '',
+                exports: defined[name],
+                config: makeConfig(name)
+            };
+        }
+    };
+
+    main = function (name, deps, callback, relName) {
+        var cjsModule, depName, ret, map, i,
+            args = [],
+            usingExports;
+
+        //Use name if no relName
+        relName = relName || name;
+
+        //Call the callback to define the module, if necessary.
+        if (typeof callback === 'function') {
+
+            //Pull out the defined dependencies and pass the ordered
+            //values to the callback.
+            //Default to [require, exports, module] if no deps
+            deps = !deps.length && callback.length ? ['require', 'exports', 'module'] : deps;
+            for (i = 0; i < deps.length; i += 1) {
+                map = makeMap(deps[i], relName);
+                depName = map.f;
+
+                //Fast path CommonJS standard dependencies.
+                if (depName === "require") {
+                    args[i] = handlers.require(name);
+                } else if (depName === "exports") {
+                    //CommonJS module spec 1.1
+                    args[i] = handlers.exports(name);
+                    usingExports = true;
+                } else if (depName === "module") {
+                    //CommonJS module spec 1.1
+                    cjsModule = args[i] = handlers.module(name);
+                } else if (hasProp(defined, depName) ||
+                           hasProp(waiting, depName) ||
+                           hasProp(defining, depName)) {
+                    args[i] = callDep(depName);
+                } else if (map.p) {
+                    map.p.load(map.n, makeRequire(relName, true), makeLoad(depName), {});
+                    args[i] = defined[depName];
+                } else {
+                    throw new Error(name + ' missing ' + depName);
+                }
+            }
+
+            ret = callback.apply(defined[name], args);
+
+            if (name) {
+                //If setting exports via "module" is in play,
+                //favor that over return value and exports. After that,
+                //favor a non-undefined return value over exports use.
+                if (cjsModule && cjsModule.exports !== undef &&
+                        cjsModule.exports !== defined[name]) {
+                    defined[name] = cjsModule.exports;
+                } else if (ret !== undef || !usingExports) {
+                    //Use the return value from the function.
+                    defined[name] = ret;
+                }
+            }
+        } else if (name) {
+            //May just be an object definition for the module. Only
+            //worry about defining if have a module name.
+            defined[name] = callback;
+        }
+    };
+
+    requirejs = require = req = function (deps, callback, relName, forceSync, alt) {
+        if (typeof deps === "string") {
+            if (handlers[deps]) {
+                //callback in this case is really relName
+                return handlers[deps](callback);
+            }
+            //Just return the module wanted. In this scenario, the
+            //deps arg is the module name, and second arg (if passed)
+            //is just the relName.
+            //Normalize module name, if it contains . or ..
+            return callDep(makeMap(deps, callback).f);
+        } else if (!deps.splice) {
+            //deps is a config object, not an array.
+            config = deps;
+            if (callback.splice) {
+                //callback is an array, which means it is a dependency list.
+                //Adjust args if there are dependencies
+                deps = callback;
+                callback = relName;
+                relName = null;
+            } else {
+                deps = undef;
+            }
+        }
+
+        //Support require(['a'])
+        callback = callback || function () {};
+
+        //If relName is a function, it is an errback handler,
+        //so remove it.
+        if (typeof relName === 'function') {
+            relName = forceSync;
+            forceSync = alt;
+        }
+
+        //Simulate async callback;
+        if (forceSync) {
+            main(undef, deps, callback, relName);
+        } else {
+            //Using a non-zero value because of concern for what old browsers
+            //do, and latest browsers "upgrade" to 4 if lower value is used:
+            //http://www.whatwg.org/specs/web-apps/current-work/multipage/timers.html#dom-windowtimers-settimeout:
+            //If want a value immediately, use require('id') instead -- something
+            //that works in almond on the global level, but not guaranteed and
+            //unlikely to work in other AMD implementations.
+            setTimeout(function () {
+                main(undef, deps, callback, relName);
+            }, 4);
+        }
+
+        return req;
+    };
+
+    /**
+     * Just drops the config on the floor, but returns req in case
+     * the config return value is used.
+     */
+    req.config = function (cfg) {
+        config = cfg;
+        if (config.deps) {
+            req(config.deps, config.callback);
+        }
+        return req;
+    };
+
+    define = function (name, deps, callback) {
+
+        //This module may not have dependencies
+        if (!deps.splice) {
+            //deps is not an array, so probably means
+            //an object literal or factory function for
+            //the value. Adjust args.
+            callback = deps;
+            deps = [];
+        }
+
+        if (!hasProp(defined, name) && !hasProp(waiting, name)) {
+            waiting[name] = [name, deps, callback];
+        }
+    };
+
+    define.amd = {
+        jQuery: true
+    };
+}());
+
+define("almond", function(){});
+
+define('lib/stream',[],function() {
+  var MIDIStream;
+
+  return MIDIStream = (function() {
+    function MIDIStream(str) {
+      this.str = str;
+      this.position = 0;
+    }
+
+    MIDIStream.prototype.read = function(length) {
+      var result;
+
+      result = this.str.substr(this.position, length);
+      this.position += length;
+      return result;
+    };
+
+    MIDIStream.prototype.readInt32 = function() {
+      var position, result, str;
+
+      str = this.str;
+      position = this.position;
+      result = (str.charCodeAt(position) << 24) + (str.charCodeAt(position + 1) << 16) + (str.charCodeAt(position + 2) << 8) + str.charCodeAt(position + 3);
+      this.position += 4;
+      return result;
+    };
+
+    MIDIStream.prototype.readInt16 = function() {
+      var position, result, str;
+
+      str = this.str;
+      position = this.position;
+      result = (str.charCodeAt(position) << 8) + str.charCodeAt(position + 1);
+      this.position += 2;
+      return result;
+    };
+
+    MIDIStream.prototype.readInt8 = function(signed) {
+      var result;
+
+      result = this.str.charCodeAt(this.position);
+      if (signed && result > 127) {
+        result -= 256;
+      }
+      this.position += 1;
+      return result;
+    };
+
+    MIDIStream.prototype.eof = function() {
+      return this.position >= this.str.length;
+    };
+
+    MIDIStream.prototype.readVarInt = function() {
+      var b, result;
+
+      result = 0;
+      while (true) {
+        b = this.readInt8();
+        if (b & 0x80) {
+          result += b & 0x7f;
+          result <<= 7;
+        } else {
+          return result + b;
+        }
+      }
+    };
+
+    MIDIStream.prototype.readChunk = function() {
+      var data, id, length;
+
+      id = this.read(4);
+      length = this.readInt32();
+      data = this.read(length);
+      return {
+        id: id,
+        length: length,
+        data: data
+      };
+    };
+
+    return MIDIStream;
+
+  })();
+});
+
+define('lib/events',[],function() {
+  return {
+    SequenceNumber: function(number, time) {
+      this.type = 'meta';
+      this.name = 'sequenceNumber';
+      this.number = number;
+      return this.time = time || 0;
+    },
+    Text: function(text, time) {
+      this.type = 'meta';
+      this.name = 'text';
+      this.text = text;
+      return this.time = time || 0;
+    },
+    CopyrightNotice: function(text, time) {
+      this.type = 'meta';
+      this.name = 'copyrightNotice';
+      this.text = text;
+      return this.time = time || 0;
+    },
+    TrackName: function(text, time) {
+      this.type = 'meta';
+      this.name = 'trackName';
+      this.text = text;
+      return this.time = time || 0;
+    },
+    InstrumentName: function(text, time) {
+      this.type = 'meta';
+      this.name = 'instrumentName';
+      this.text = text;
+      return this.time = time || 0;
+    },
+    Lyrics: function(text, time) {
+      this.name = 'lyrics';
+      this.text = text;
+      return this.time = time || 0;
+    },
+    Marker: function(text, time) {
+      this.type = 'meta';
+      this.name = 'marker';
+      this.text = text;
+      return this.time = time || 0;
+    },
+    CuePoint: function(text, time) {
+      this.type = 'meta';
+      this.name = 'cuePoint';
+      this.text = text;
+      return this.time = time || 0;
+    },
+    ChannelPrefix: function(channel, time) {
+      this.type = 'meta';
+      this.name = 'channelPrefix';
+      this.channel = channel;
+      return this.time = time || 0;
+    },
+    EndOfTrack: function(time) {
+      this.type = 'meta';
+      this.name = 'endOfTrack';
+      return this.time = time || 0;
+    },
+    SetTempo: function(microseconds, time) {
+      this.type = 'meta';
+      this.name = 'setTempo';
+      this.microseconds = microseconds;
+      return this.time = time || 0;
+    },
+    SMPTEOffset: function(frameRate, hour, min, sec, frame, subframe, time) {
+      this.type = 'meta';
+      this.name = 'smpteOffset';
+      this.frameRate = frameRate;
+      this.hour = hour;
+      this.min = min;
+      this.sec = sec;
+      this.frame = frame;
+      this.subframe = subframe;
+      return this.time = time || 0;
+    },
+    TimeSignature: function(numerator, denominator, metronome, thirtyseconds, time) {
+      this.type = 'meta';
+      this.name = 'timeSignature';
+      this.numerator = numerator;
+      this.denominator = denominator;
+      this.metronome = metronome;
+      this.thirtyseconds = thirtyseconds;
+      return this.time = time || 0;
+    },
+    KeySignature: function(key, scale, time) {
+      this.type = 'meta';
+      this.name = 'keySignature';
+      this.key = key;
+      this.scale = scale;
+      return this.time = time || 0;
+    },
+    SequencerSpecific: function(data, time) {
+      this.type = 'meta';
+      this.name = 'sequencerSpecific';
+      this.data = data;
+      return this.time = time || 0;
+    },
+    NoteOn: function(number, velocity, time) {
+      this.type = 'channel';
+      this.name = 'noteOn';
+      this.number = number;
+      this.velocity = velocity;
+      return this.time = time || 0;
+    },
+    NoteOff: function(number, velocity, time) {
+      this.type = 'channel';
+      this.name = 'noteOff';
+      this.number = number;
+      this.velocity = velocity;
+      return this.time = time || 0;
+    },
+    NoteAftertouch: function(number, amount, time) {
+      this.type = 'channel';
+      this.name = 'noteAftertouch';
+      this.number = number;
+      this.amount = amount;
+      return this.time = time || 0;
+    },
+    Controller: function(controller, value, time) {
+      this.type = 'channel';
+      this.name = 'controller';
+      this.controller = controller;
+      this.value = value;
+      return this.time = time || 0;
+    },
+    ProgramChange: function(number, time) {
+      this.type = 'channel';
+      this.name = 'programChange';
+      this.number = number;
+      return this.time = time || 0;
+    },
+    ChannelAftertouch: function(amount, time) {
+      this.type = 'channel';
+      this.name = 'channelAftertouch';
+      this.amount = amount;
+      return this.time = time || 0;
+    },
+    PitchBend: function(value, time) {
+      this.type = 'channel';
+      this.controller = controller;
+      this.value = value;
+      return this.time = time || 0;
+    }
+  };
+});
+
+var __hasProp = {}.hasOwnProperty,
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+
+define('lib/parser',['./stream', './events'], function(Stream, Events) {
+  var ChannelEventParser, EventParser, MIDIHeader, MIDIParser, MIDITracks, MetaEventParser, SysEventParser, _ref, _ref1, _ref2;
+
+  EventParser = (function() {
+    function EventParser() {}
+
+    EventParser.checkLength = function(name, length, check) {
+      if (length !== check) {
+        throw "Expected length for " + name + " event is " + check + ", got " + length;
+      }
+      if (length === check) {
+        return true;
+      }
+    };
+
+    return EventParser;
+
+  })();
+  MetaEventParser = (function(_super) {
+    __extends(MetaEventParser, _super);
+
+    function MetaEventParser() {
+      _ref = MetaEventParser.__super__.constructor.apply(this, arguments);
+      return _ref;
+    }
+
+    MetaEventParser.events = {
+      0x00: function(length, stream, time) {
+        if (!MetaEventParser.checkLength('SequenceNumber', length, 2)) {
+          return;
+        }
+        return new MIDI.Events.SequenceNumber(stream.readInt16(), time);
+      },
+      0x01: function(length, stream, time) {
+        return new MIDI.Events.Text(stream.read(length), time);
+      },
+      0x02: function(length, stream, time) {
+        return new MIDI.Events.CopyrightNotice(stream.read(length), time);
+      },
+      0x03: function(length, stream, time) {
+        return new MIDI.Events.TrackName(stream.read(length), time);
+      },
+      0x04: function(length, stream, time) {
+        return new MIDI.Events.InstrumentName(stream.read(length), time);
+      },
+      0x05: function(length, stream, time) {
+        return new MIDI.Events.Lyrics(stream.read(length), time);
+      },
+      0x06: function(length, stream, time) {
+        return new MIDI.Events.Marker(stream.read(length), time);
+      },
+      0x07: function(length, stream, time) {
+        return new MIDI.Events.CuePoint(stream.read(length), time);
+      },
+      0x20: function(length, stream, time) {
+        if (!MetaEventParser.checkLength('ChannelPrefix', length, 1)) {
+          return;
+        }
+        return new MIDI.Events.ChannelPrefix(stream.readInt8(), time);
+      },
+      0x2f: function(length, stream, time) {
+        if (!MetaEventParser.checkLength('EndOfTrack', length, 0)) {
+          return;
+        }
+        return new MIDI.Events.EndOfTrack(time);
+      },
+      0x51: function(length, stream, time) {
+        if (!MetaEventParser.checkLength('SetTempo', length, 3)) {
+          return;
+        }
+        return new MIDI.Events.SetTempo((stream.readInt8() << 16) + (stream.readInt8() << 8) + stream.readInt8(), time);
+      },
+      0x54: function(length, stream, time) {
+        var frame_rate, hour_byte;
+
+        if (!MetaEventParser.checkLength('SMPTEOffset', length, 5)) {
+          return;
+        }
+        hour_byte = stream.readInt8();
+        frame_rate = {
+          0x00: 24,
+          0x20: 25,
+          0x40: 29,
+          0x60: 30
+        };
+        frame_rate = frame_rate[hour_byte & 0x60];
+        return new SMPTEOffset(frame_rate, hour_byte & 0x1f, stream.readInt8(), stream.readInt8(), stream.readInt8(), stream.readInt8(), time);
+      },
+      0x58: function(length, stream, time) {
+        if (!MetaEventParser.checkLength('TimeSignature', length, 4)) {
+          return;
+        }
+        return new MIDI.Events.TimeSignature(stream.readInt8(), Math.pow(2, stream.readInt8()), stream.readInt8(), stream.readInt8(), time);
+      },
+      0x59: function(length, stream, time) {
+        if (!MetaEventParser.checkLength('KeySignature', length, 2)) {
+          return;
+        }
+        return new MIDI.Events.KeySignature(stream.readInt8(true), stream.readInt8(), time);
+      },
+      0x7f: function(length, stream, time) {
+        return new MIDI.Events.SequencerSpecific(stream.read(length), time);
+      }
+    };
+
+    MetaEventParser.prototype.read = function(stream, time, eventTypeByte) {
+      var create_event, length, nameByte;
+
+      nameByte = stream.readInt8();
+      length = stream.readVarInt();
+      create_event = MetaEventParser.events[nameByte];
+      if (create_event) {
+        return create_event(length, stream, time);
+      } else {
+        return {
+          type: "unknown",
+          time: time,
+          data: stream.read(length)
+        };
+      }
+    };
+
+    return MetaEventParser;
+
+  })(EventParser);
+  ChannelEventParser = (function(_super) {
+    __extends(ChannelEventParser, _super);
+
+    function ChannelEventParser() {
+      _ref1 = ChannelEventParser.__super__.constructor.apply(this, arguments);
+      return _ref1;
+    }
+
+    ChannelEventParser.events = {
+      0x08: function(param, stream, time) {
+        return new MIDI.Events.NoteOff(param, stream.readInt8(), time);
+      },
+      0x09: function(param, stream, time) {
+        var event_name, velocity;
+
+        velocity = stream.readInt8();
+        event_name = (velocity ? "NoteOn" : "NoteOff");
+        return new MIDI.Events[event_name](param, velocity, time);
+      },
+      0x0a: function(param, stream, time) {
+        return new MIDI.Events.NoteAftertouch(param, stream.readInt8(), time);
+      },
+      0x0b: function(param, stream, time) {
+        return new MIDI.Events.Controller(param, stream.readInt8(), time);
+      },
+      0x0c: function(param, stream, time) {
+        return new MIDI.Events.ProgramChange(param, time);
+      },
+      0x0d: function(param, stream, time) {
+        return new MIDI.Events.ChannelAftertouch(param, time);
+      },
+      0x0e: function(param, stream, time) {
+        return new MIDI.Events.PitchBend(param + (stream.readInt8() << 7), time);
+      }
+    };
+
+    ChannelEventParser.prototype.read = function(stream, time, eventTypeByte) {
+      var channel, create_event, eventType, param;
+
+      if ((eventTypeByte & 0x80) === 0) {
+        param = eventTypeByte;
+        eventTypeByte = this._lastEventTypeByte;
+      } else {
+        param = stream.readInt8();
+        this._lastEventTypeByte = eventTypeByte;
+      }
+      eventType = eventTypeByte >> 4;
+      channel = eventTypeByte & 0x0f;
+      create_event = ChannelEventParser.events[eventType];
+      if (create_event) {
+        return create_event(param, stream, time);
+      } else {
+        return {
+          type: "unknown",
+          time: time,
+          channel: channel
+        };
+      }
+    };
+
+    return ChannelEventParser;
+
+  })(EventParser);
+  SysEventParser = (function(_super) {
+    __extends(SysEventParser, _super);
+
+    function SysEventParser() {
+      _ref2 = SysEventParser.__super__.constructor.apply(this, arguments);
+      return _ref2;
+    }
+
+    SysEventParser.events = {
+      0xf0: function(stream, time) {
+        var length;
+
+        length = stream.readVarInt();
+        return new MIDI.Events.SysEx(stream.read(length), time);
+      },
+      0xf7: function(stream, time) {
+        var length;
+
+        length = stream.readVarInt();
+        return new MIDI.Events.DividedSysEx(stream.read(length), time);
+      }
+    };
+
+    SysEventParser.prototype.read = function(stream, time, eventTypeByte) {
+      var create_event;
+
+      create_event = SysEventParser.events[eventTypeByte];
+      if (create_event) {
+        return create_event(stream, time);
+      } else {
+        return {
+          type: "unknown",
+          time: time
+        };
+      }
+    };
+
+    return SysEventParser;
+
+  })(EventParser);
+  MIDIHeader = (function() {
+    function MIDIHeader(midi_stream) {
+      this.midi_stream = midi_stream;
+    }
+
+    MIDIHeader.prototype.read = function() {
+      var header, header_chunk, header_stream;
+
+      header_chunk = this.midi_stream.readChunk();
+      if (header_chunk.id !== "MThd" || header_chunk.length !== 6) {
+        throw "Bad .mid file - header not found";
+      }
+      header_stream = new Stream(header_chunk.data);
+      header = {
+        formatType: header_stream.readInt16(),
+        trackCount: header_stream.readInt16(),
+        ticksPerBeat: header_stream.readInt16()
+      };
+      if (header.ticksPerBeat & 0x8000) {
+        throw "Expressing time division in SMTPE frames is not supported yet";
+      }
+      return header;
+    };
+
+    return MIDIHeader;
+
+  })();
+  MIDITracks = (function() {
+    function MIDITracks(midi_stream, header) {
+      this.midi_stream = midi_stream;
+      this.header = header;
+    }
+
+    MIDITracks.prototype.read = function() {
+      var i, track, track_chunk, track_id, track_stream, tracks, unexpected, _i, _ref3;
+
+      tracks = [];
+      for (i = _i = 0, _ref3 = this.header.trackCount - 1; 0 <= _ref3 ? _i <= _ref3 : _i >= _ref3; i = 0 <= _ref3 ? ++_i : --_i) {
+        track = tracks[i] = [];
+        track_chunk = this.midi_stream.readChunk();
+        track_id = track_chunk.id;
+        unexpected = track_id !== "MTrk";
+        if (unexpected) {
+          throw "Unexpected chunk. Expected MTrk, got " + track_id + ".";
+        }
+        track_stream = new Stream(track_chunk.data);
+        while (!track_stream.eof()) {
+          track.push(this.readNext(track_stream));
+        }
+      }
+      return tracks;
+    };
+
+    MIDITracks.prototype.readNext = function(track_stream) {
+      var e, eventTypeByte, parser, time;
+
+      e = new Event(track_stream);
+      time = track_stream.readVarInt();
+      eventTypeByte = track_stream.readInt8();
+      EventParser = this.getEventParserByType(eventTypeByte);
+      parser = new EventParser();
+      return parser.read(track_stream, time, eventTypeByte);
+    };
+
+    MIDITracks.prototype.getEventParserByType = function(eventTypeByte) {
+      if ((eventTypeByte & 0xf0) !== 0xf0) {
+        return ChannelEventParser;
+      } else if (eventTypeByte === 0xff) {
+        return MetaEventParser;
+      } else {
+        return SysEventParser;
+      }
+    };
+
+    return MIDITracks;
+
+  })();
+  return MIDIParser = (function() {
+    function MIDIParser(binaryString) {
+      var header, header_parser, midi_stream, track_parser, tracks;
+
+      midi_stream = new Stream(binaryString);
+      header_parser = new MIDIHeader(midi_stream);
+      header = header_parser.read();
+      track_parser = new MIDITracks(midi_stream, header);
+      tracks = track_parser.read();
+      this.header = header;
+      this.tracks = tracks;
+    }
+
+    return MIDIParser;
+
+  })();
+});
+
+define('lib/writer',[],function() {
+  var MIDIWriter;
+
+  return MIDIWriter = (function() {
+    function MIDIWriter(midi) {
+      this.midi = midi;
+    }
+
+    MIDIWriter.prototype.write = function() {
+      return JSON.stringify(this.midi);
+    };
+
+    return MIDIWriter;
+
+  })();
+});
+
+define('main',['./lib/parser', './lib/writer', './lib/events'], function(Parser, Writer, Events) {
+  var exports;
+
+  exports = exports || window;
+  return exports.MIDI = (function() {
+    _Class.Writer = Writer;
+
+    _Class.Parser = Parser;
+
+    _Class.Events = Events;
+
+    function _Class(header, tracks) {
+      var decoded;
+
+      if (typeof header === 'string') {
+        decoded = new Parser(header);
+        header = decoded.header;
+        tracks = decoded.tracks;
+      }
+      this.header = header;
+      this.tracks = tracks;
+    }
+
+    _Class.prototype.write = function() {
+      var writer;
+
+      writer = new Writer(this);
+      return writer.write();
+    };
+
+    return _Class;
+
+  })();
+});
+require(['main'], null, null, true); }(this));
