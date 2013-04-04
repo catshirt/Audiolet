@@ -1,7 +1,7 @@
 function playVoice() {
 
     var audiolet = new Audiolet(),
-        voice = new MidiVoice(audiolet, 60, 127);
+        voice = new MIDIVoice(audiolet, 60, 127);
 
     voice.connect(audiolet.output);
 
@@ -10,7 +10,7 @@ function playVoice() {
 function playInstrument() {
 
     var audiolet = new Audiolet(),
-        instrument = new MidiInstrument(audiolet, [MidiVoice]);
+        instrument = new MIDIInstrument(audiolet, [MIDIVoice]);
 
     instrument.connect(audiolet.output);
 
@@ -21,8 +21,8 @@ function playInstrument() {
 function playArpeggiator() {
 
     var audiolet = new Audiolet(),
-        arpeggiator = new MidiArpeggiator(audiolet),
-        instrument = new MidiInstrument(audiolet, [MidiVoice]);
+        arpeggiator = new MIDIArpeggiator(audiolet),
+        instrument = new MIDIInstrument(audiolet, [MIDIVoice]);
 
     arpeggiator.midiOut.connect(instrument.midiIn);
     instrument.connect(audiolet.output);
@@ -35,9 +35,9 @@ function playArpeggiator() {
 function playKeyboard() {
 
     var audiolet = new Audiolet(),
-        keyboard = new MidiKeyboard(audiolet),
-        arpeggiator = new MidiArpeggiator(audiolet),
-        instrument = new MidiInstrument(audiolet, [MidiVoice]);
+        keyboard = new MIDIKeyboard(audiolet),
+        arpeggiator = new MIDIArpeggiator(audiolet),
+        instrument = new MIDIInstrument(audiolet, [MIDIVoice]);
 
     keyboard.midiOut.connect(arpeggiator.midiIn);
     arpeggiator.midiOut.connect(instrument.midiIn);
@@ -58,7 +58,7 @@ function playTrack() {
     ];
     
     var audiolet = new Audiolet(),
-        instrument = new MidiInstrument(audiolet, [MidiVoice]);
+        instrument = new MIDIInstrument(audiolet, [MIDIVoice]);
 
     instrument.connect(audiolet.output);
     instrument.play(track);
@@ -85,10 +85,10 @@ function playMidi() {
 
     var midi = new MIDI(header, [track]),
         audiolet = new Audiolet(),
-        midiPlayer = new MidiPlayer(audiolet, midi);
+        MIDIPlayer = new MIDIPlayer(audiolet, midi);
 
-    midiPlayer.connect(audiolet.output);
-    midiPlayer.play();
+    MIDIPlayer.connect(audiolet.output);
+    MIDIPlayer.play();
 
 };
 

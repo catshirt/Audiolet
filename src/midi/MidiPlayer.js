@@ -2,18 +2,18 @@
  * @depends ../core/AudioletGroup.js
  */
 
-var MidiPlayer = MidiGroup.extend({
+var MIDIPlayer = MIDIGroup.extend({
 
   constructor: function(audiolet, midi) {
     var header = midi.header,
       track_count = header.trackCount,
-      controller = new MidiGroup(audiolet);
-    MidiGroup.apply(this, [audiolet, 1, 1]);
+      controller = new MIDIGroup(audiolet);
+    MIDIGroup.apply(this, [audiolet, 1, 1]);
     this.midiFile = midi;
     this.instruments = [];
 
     for (var i = 0; i < midi.tracks.length; i++) {
-      var instrument = new MidiInstrument(audiolet, [MidiVoice]);
+      var instrument = new MIDIInstrument(audiolet, [MIDIVoice]);
       this.instruments[i] = instrument;
       this.midiIn.connect(instrument);
       instrument.connect(this.outputs[0]);

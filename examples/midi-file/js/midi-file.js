@@ -8,13 +8,13 @@ function loadMidi(input) {
 
         var midi = new MIDI(load_e.target.result),
             audiolet = new Audiolet(),
-            midiPlayer = new MidiPlayer(audiolet, midi);
+            MIDIPlayer = new MIDIPlayer(audiolet, midi);
 
-        for (var i = 0; i < midiPlayer.outputs.length; i++) {
-            midiPlayer.outputs[i].connect(audiolet.output);
+        for (var i = 0; i < MIDIPlayer.outputs.length; i++) {
+            MIDIPlayer.outputs[i].connect(audiolet.output);
         };
 
-        midiPlayer.play();
+        MIDIPlayer.play();
 
     };
 

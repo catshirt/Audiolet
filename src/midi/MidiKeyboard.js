@@ -1,12 +1,12 @@
 /*!
- * @depends MidiGroup.js
+ * @depends MIDIGroup.js
  */
 
 /**
- * A MidiKeyboard simply broadcasts MIDI messages on a single MIDI output,
- * based on events fired from keyboard input.
+ * A MIDIKeyboard send MIDI noteOn and noteOff events
+ * based on keys pressed on the users keyboard.
  */
-var MidiKeyboard = MidiGroup.extend({
+var MIDIKeyboard = MIDIGroup.extend({
 
     /*
      * Constructor
@@ -14,16 +14,18 @@ var MidiKeyboard = MidiGroup.extend({
      * @param {Audiolet} audiolet The audiolet object.
      */
     constructor: function(audiolet) {
-        MidiGroup.call(this, audiolet, 0, 1);
+        MIDIGroup.call(this, audiolet);
         this._pressed = {};
         document.addEventListener('keydown', this.tryNoteOn.bind(this));
         document.addEventListener('keyup', this.tryNoteOff.bind(this));
     },
 
-    // this maps e.which values to midi note values.
-    // for instance, 'G' on the keyboard is `70`,
-    // which maps to midi key `71`, or, middle C
-    scale: {
+    /**
+     * This maps e.which values to midi note values.
+     * For instance, 'G' on the keyboard is `70`,
+     * which maps to midi key `71`, or, middle C.
+     */
+    MIDINotesByChar: {
         65: 64,
         87: 65,
         83: 67,
@@ -42,20 +44,29 @@ var MidiKeyboard = MidiGroup.extend({
         80: 81
     },
 
+    /**
+     * Triggered on keydown, tryNoteOn sends a NoteOn
+     * event on midiOut if the note isn't already on,
+     * and the key pressed is in our scale.
+     */
     tryNoteOn: function(e) {
-        var eventKey = e.which,
-            midiKey = this.scale[eventKey];
-        if (!this._pressed[eventKey] && midiKey) {
-            this._pressed[eventKey] = true;
+        var char = e.which,
+            midiKey = this.MIDINotesByChar[char];
+        if (!this._pressed[char] && midiKey) {
+            this._pressed[char] = true;
             this.midiOut.send(new MIDI.Events.NoteOn(midiKey, 127));
         }
     },
 
+    /**
+     * Triggered on keyup, tryNoteOff sends a NoteOff
+     * event on midiOut if the note is on.
+     */
     tryNoteOff: function(e) {
-        var eventKey = e.which,
-            midiKey = this.scale[eventKey];
-        if (this._pressed[eventKey] && midiKey) {
-            this._pressed[eventKey] = false;
+        var char = e.which,
+            midiKey = this.MIDINotesByChar[char];
+        if (this._pressed[char]) {
+            this._pressed[char] = false;
             this.midiOut.send(new MIDI.Events.NoteOff(midiKey, 127));
         }
     }

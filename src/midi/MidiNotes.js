@@ -1,4 +1,7 @@
-var MidiNotes = {
+/**
+ * MIDINotes maps MIDI note numbers to scientific note values.
+ */
+var MIDINotes = {
     0: 'c-1',
     1: 'c#-1',
     2: 'd-1',

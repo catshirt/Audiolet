@@ -2,14 +2,13 @@
  * @depends ../core/AudioletClass.js
  */
 
-var MidiClock = AudioletClass.extend({
+var MIDIClock = AudioletClass.extend({
 
   // todo: figure out midi clock slave and master
   constructor: function(scheduler) {
     AudioletClass.apply(this);
     this.scheduler = scheduler;
   },
-
 
   // todo: this should be part of a midi group
   sequence: function(events, cb, ticksPerBeat) {

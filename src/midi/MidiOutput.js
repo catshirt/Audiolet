@@ -3,21 +3,36 @@
  */
 
 /**
- * Class representing a midi input of a MidiGroup
+ * A MIDIOutput accepts a `MIDIGroup` on instantiation,
+ * and exposes a `send` method which sends MIDI events to
+ * the input that this output is connected to.
  */
-var MidiOutput = AudioletClass.extend({
+var MIDIOutput = AudioletClass.extend({
 
+    /*
+     * Constructor
+     *
+     * @param {MIDIGroup} node The MIDIGroup the output belongs to.
+     */
     constructor: function(node) {
         AudioletClass.apply(this);
         this.node = node;
     },
 
+    /**
+     * Connects the output to a midi input,
+     * ensuring any value sent on this output
+     * is sent to that input.
+     */
     connect: function(midiIn) {
-        this.midiIn = midiIn;
+        this.connectedTo = midiIn;
     },
 
+    /**
+     * Forward a message to the connected input.
+     */
     send: function(e) {
-        this.midiIn.send(e);
+        this.connectedTo.send(e);
     }
 
 });
