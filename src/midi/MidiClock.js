@@ -4,11 +4,14 @@
 
 var MidiClock = AudioletClass.extend({
 
+  // todo: figure out midi clock slave and master
   constructor: function(scheduler) {
     AudioletClass.apply(this);
     this.scheduler = scheduler;
   },
 
+
+  // todo: this should be part of a midi group
   sequence: function(events, cb, ticksPerBeat) {
     // midi clock ticks 24 (or n) times per beat
     var tick = 1 / (ticksPerBeat || 96),

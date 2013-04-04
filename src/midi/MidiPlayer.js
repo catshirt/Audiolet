@@ -2,32 +2,34 @@
  * @depends ../core/AudioletGroup.js
  */
 
-var MidiPlayer = AudioletGroup.extend({
+var MidiPlayer = MidiGroup.extend({
 
   constructor: function(audiolet, midi) {
     var header = midi.header,
-      track_count = header.trackCount;
-    AudioletGroup.apply(this, [audiolet, 0, track_count]);
-    this.midi = midi;
+      track_count = header.trackCount,
+      controller = new MidiGroup(audiolet);
+    MidiGroup.apply(this, [audiolet, 1, 1]);
+    this.midiFile = midi;
     this.instruments = [];
 
-    for (var i = 0; i < this.outputs.length; i++) {
+    for (var i = 0; i < midi.tracks.length; i++) {
       var instrument = new MidiInstrument(audiolet, [MidiVoice]);
       this.instruments[i] = instrument;
-      instrument.connect(this.outputs[i]);
+      this.midiIn.connect(instrument);
+      instrument.connect(this.outputs[0]);
     }
   },
 
   play: function() {
-    var midi = this.midi,
-      tracks = midi.tracks,
-      instruments = this.instruments,
-      ticksPerBeat = midi.header.ticksPerBeat,
-      track, instrument;
+    var midiFile = this.midiFile,
+      tracks = midiFile.tracks,
+      midi_clock = this.audiolet.midiClock,
+      ticksPerBeat = midiFile.header.ticksPerBeat,
+      midiOut = this.midiIn;
     for (var i = 0; i < tracks.length; i++) {
-      track = tracks[i];
-      instrument = instruments[i];
-      instrument.play(track, ticksPerBeat);
+      midi_clock.sequence(tracks[i], function(e) {
+        midiOut.send(e);
+      }, ticksPerBeat);
     };
   }
 

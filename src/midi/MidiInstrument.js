@@ -1,14 +1,19 @@
 /*!
- * @depends ../core/AudioletGroup.js
+ * @depends MidiGroup.js
  */
 
-var MidiInstrument = AudioletGroup.extend({
+// a group that creates voices based on midi messages
+var MidiInstrument = MidiGroup.extend({
 
   constructor: function(audiolet, Voices) {
-    AudioletGroup.apply(this, [audiolet, 0, 1]);
+    MidiGroup.apply(this, [audiolet, 1, 1]);
     this.Voices = Voices;
     this.Voice = Voices[0];
     this.voices = {};
+  },
+
+  connectVoice: function(voice) {
+    voice.connect(this.outputs[0]);
   },
 
   noteOn: function(e) {
@@ -18,15 +23,15 @@ var MidiInstrument = AudioletGroup.extend({
       voices = voices_by_note[e.number] = voices_by_note[e.number] || [];
 
     voices.push(voice);
-    voice.connect(this.outputs[0]);
+    this.connectVoice(voice);
   },
 
   noteOff: function(e) {
     var voices = this.voices,
       note_voices = voices[e.number],
-      voice = note_voices.pop();
+      voice = note_voices && note_voices.pop();
     
-    voice.remove();
+    voice && voice.remove();
   },
 
   programChange: function(e) {
@@ -34,17 +39,6 @@ var MidiInstrument = AudioletGroup.extend({
       Voice = Voices[e.number];
       
     this.Voice = Voice;
-  },
-
-  play: function(track, ticksPerBeat) {
-    var self = this,
-      audiolet = this.audiolet,
-      midi_clock = audiolet.midiClock;
-    midi_clock.sequence(track, function(e) {
-      var name = e.name || e.type,
-        cb = self[name];
-      cb && cb.apply(self, [e]);
-    }, ticksPerBeat);
   }
 
 });

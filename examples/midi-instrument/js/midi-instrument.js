@@ -13,7 +13,35 @@ function playInstrument() {
         instrument = new MidiInstrument(audiolet, [MidiVoice]);
 
     instrument.connect(audiolet.output);
+
     instrument.noteOn(new MIDI.Events.NoteOn(60, 127));
+
+};
+
+function playArpeggiator() {
+
+    var audiolet = new Audiolet(),
+        arpeggiator = new MidiArpeggiator(audiolet),
+        instrument = new MidiInstrument(audiolet, [MidiVoice]);
+
+    arpeggiator.midiOut.connect(instrument.midiIn);
+    instrument.connect(audiolet.output);
+
+    var mid_c_on = new MIDI.Events.NoteOn(60, 127);
+    arpeggiator.midiIn.send(mid_c_on);
+
+};
+
+function playKeyboard() {
+
+    var audiolet = new Audiolet(),
+        keyboard = new MidiKeyboard(audiolet),
+        arpeggiator = new MidiArpeggiator(audiolet),
+        instrument = new MidiInstrument(audiolet, [MidiVoice]);
+
+    keyboard.midiOut.connect(arpeggiator.midiIn);
+    arpeggiator.midiOut.connect(instrument.midiIn);
+    instrument.connect(audiolet.output);
 
 };
 
