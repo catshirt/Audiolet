@@ -518,7 +518,7 @@ var AudioletDestination = AudioletGroup.extend({
         audiolet.device = this.device; // Shortcut
         this.scheduler = new Scheduler(audiolet);
         audiolet.scheduler = this.scheduler; // Shortcut
-        this.midiClock = new MidiClock(this.scheduler);
+        this.midiClock = new MIDIClock(this.scheduler);
         audiolet.midiClock = this.midiClock; // Shortcut
 
         this.upMixer = new UpMixer(audiolet, this.device.numberOfChannels);
@@ -4863,17 +4863,12 @@ var WhiteNoise = AudioletNode.extend({
  */
 
 /**
- * A MidiGroup is almost identical to an AudioletGroup, except it
- * let's you define which input and output index represent MidiInputs
- * and MidIOutputs. It additionally provides a `onMidi` method which
- * maps midi messages to instance methods. `.onMidi(144, 44, 255)` for instance,
- * will trigger .noteOn(44, 255);.
- *
- * The MidiInput, MidiOutput, and MidiGroup nodes all behave the same as Audiolet
- * objects for routing purposes- but `MidiOutput` has a unique method; `send`.
- * `send` will send a midi message to the node that output is connected to.
+ * A MIDIGroup is an AudioletGroup with additional `midiIn` and `midiOut`
+ * properties. `midiIn` is responsible for taking inbound MIDI messages and mapping
+ * them to instance methods, and `midiOut` is responsible for giving the `MIDIGroup`
+ * a method for sending MIDI messages to other groups.
  */
-var MidiGroup = AudioletGroup.extend({
+var MIDIGroup = AudioletGroup.extend({
 
     /*
      * Constructor
@@ -4881,83 +4876,110 @@ var MidiGroup = AudioletGroup.extend({
      * @param {Audiolet} audiolet The audiolet object.
      * @param {Number} numberOfInputs The number of inputs.
      * @param {Number} numberOfOutputs The number of outputs.
-     * @param {Number} midiIn The input index to use for midi in.
-     * @param {Number} midiOut The output index to use for midi out.
      */
     constructor: function(audiolet, numberOfInputs, numberOfOutputs) {
         AudioletGroup.apply(this, arguments);
-        this.midiIn = new MidiInput(this);
-        this.midiOut = new MidiOutput(this);
+        this.midiIn = new MIDIInput(this);
+        this.midiOut = new MIDIOutput(this);
     }
 
 });
 /*!
- * @depends MidiGroup.js
+ * @depends MIDIGroup.js
  */
 
- /**
- * An Arpeggiator is a MidiGroup which modifies the MIDI messages on
- * input 0, and forwards the newly generated messages on output 0.
+/**
+ * A MIDIArpeggiator is a MIDIGroup with only a midiIn and midiOut.
+ * when it's `midiIn` receives a `NoteOn` event, it will schedule arpeggiated
+ * sequences of the original `NoteOn`, and send the modified `NoteOn` events
+ * on it's `midiOut`.
  */
-var MidiArpeggiator = MidiGroup.extend({
+var MIDIArpeggiator = MIDIGroup.extend({
 
     /*
      * Constructor
      * @param {Audiolet} audiolet The audiolet object.
+     * @param {Float} frequency Number of beats per measure to arpeggiate.
+     * @param {Number} The amount of upper octaves to arpeggiate.
+     * @param {String} pattern The name of the pattern method to use.
      */
-    constructor: function(audiolet, tempo, octaves, pattern) {
-        MidiGroup.call(this, audiolet, 1, 1, 0, 0);
-        this.tempo = tempo || 1/8;
+    constructor: function(audiolet, frequency, octaves, pattern) {
+        MIDIGroup.call(this, audiolet);
+        this.frequency = 1/frequency || 1/8;
         this.octaves = octaves || 1;
         this.pattern = pattern || 'up';
-        this._events = [];
+        this._notesOn = [];
         this._pattern = new PProxy([], Infinity);
         this._lastE = null;
     },
 
+    
+    /**
+     * Add an event to the list of active events,
+     * and augment the current playing pattern accordingly.
+     */
     noteOn: function(e) { 
-        if (!this._events.length) {
-            this._playing = this.play(e);
+        if (!this._notesOn.length) {
+            this._playing = this.arpeggiate(e);
         }
-        this._events.push(e);
+        this._notesOn.push(e);
         this._pattern.pattern = this[this.pattern]();
     },
 
+    /**
+     * Remove an event to the list of active events,
+     * and augment the current playing pattern accordingly.
+     */
     noteOff: function(e) {
-        // remove old event
-        for (var i = 0; i < this._events.length; i++) {
-            if (this._events[i].number == e.number) {
-                this._events.splice(i);
+        // remove associated noteOn event
+        for (var i = 0; i < this._notesOn.length; i++) {
+            if (this._notesOn[i].number == e.number) {
+                this._notesOn.splice(i);
                 break;
             }
         }
-        if (!this._events.length) {
+
+        // if there are no remaining notes, stop the scheduling 
+        if (!this._notesOn.length) {
             this.stop();
+
+        // if there are still events to be arpeggiated, update the pattern
         } else {
             this._pattern.pattern = this[this.pattern]();
         }
     },
 
-    play: function(e) {
+    /**
+     * Takes a `NoteOn` event and schedules new events on `midiOut`.
+     */
+    arpeggiate: function(e) {
         var self = this,
             pattern = this._pattern,
             scheduler = this.audiolet.scheduler,
-            tempo = this.tempo,
+            frequency = this.frequency,
             midiOut = this.midiOut;
 
-        return scheduler.play([pattern], 4 * tempo, function(cur_num) {
+        // start a tick based on the `MIDIArpeggiator` `frequency`. although it
+        // is called only when the initial note starts, the pattern is hotswapped
+        // in `noteOn` and `noteOff` as other notes are received.
+        return scheduler.play([pattern], 4 * frequency, function(cur_num) {
             var vel = (self._lastE || e).velocity;
 
+            // turn off the previous noteOn
             if (self._lastE) {
                 var last_num = self._lastE.number;
                 midiOut.send(new MIDI.Events.NoteOff(last_num, vel));
             }
 
+            // send a new noteOn
             self._lastE = new MIDI.Events.NoteOn(cur_num, vel);
             midiOut.send(self._lastE);  
         });
     },
 
+    /**
+     * Stop the scheduler sequence and turn off the last sent noteOn.
+     */
     stop: function() {
         var scheduler = this.audiolet.scheduler,
             e = this._lastE,
@@ -4968,29 +4990,41 @@ var MidiArpeggiator = MidiGroup.extend({
         midiOut.send(new MIDI.Events.NoteOff(e.number, e.velocity));
     },
 
+    /**
+     * Returns a PSequence representing the arpeggiated output,
+     * given it's current `_notesOn`.
+     */
     up: function() {
-        var events = this._events,
+        var notesOn = this._notesOn,
             pattern = new PSequence([], Infinity),
-            e;
+            noteOn;
 
-        for (var i = 0; i < events.length; i++) {
-            e = events[i];
+        // create an additional octave sequence for each current NoteOn event
+        for (var i = 0; i < notesOn.length; i++) {
+            noteOn = notesOn[i];
             for (var j = 0; j < this.octaves + 1; j++) {
-                pattern.list.push(e.number + (12 * (j + 1)));
+                pattern.list.push(noteOn.number + (12 * (j + 1)));
             }
         }
 
         pattern.list.sort();
-
         return pattern;
     },
-
+    
+    /**
+     * Returns a reversed modification of the `up` sequence.
+     */
     down: function() {
         var pattern = this.up();
         pattern.list.reverse();
         return pattern;
     },
-
+    
+    
+    /**
+     * Returns a concatenated modification of the
+     * `up` and `down` sequences (exclusive).
+     */
     excl: function() {
         var up = this.up().list,
             down = this.down().list;
@@ -4998,23 +5032,29 @@ var MidiArpeggiator = MidiGroup.extend({
         down.pop();
         return new PSequence(up.concat(down), Infinity);
     },
-
+    
+    /**
+     * Returns a concatenated modification of the
+     * `up` and `down` sequences (inclusive).
+     */
     incl: function() {  
         var up = this.up().list,
             down = this.down().list;
         return new PSequence(up.concat(down), Infinity);
     },
 
-    // todo: finish patterns
+    /**
+     * Returns some sort of ordered version of the up sequence.
+     */
     order: function(e) {
-        // order is not relevant until arp handles simultaneous noteon
-        // order merges different sequences of many octaves, ie.
-        // [0, 12, 24], [40, 52, 64] would become
-        // [0, 40, 12, 52, 24, 64]
+        // todo
     },
-
+    
+    /**
+     * Returns a random sequence of all the possible arpeggiated values.
+     */
     random: function(e) {
-        // how to create random?
+        // todo
     }
 
 });
@@ -5022,14 +5062,13 @@ var MidiArpeggiator = MidiGroup.extend({
  * @depends ../core/AudioletClass.js
  */
 
-var MidiClock = AudioletClass.extend({
+var MIDIClock = AudioletClass.extend({
 
   // todo: figure out midi clock slave and master
   constructor: function(scheduler) {
     AudioletClass.apply(this);
     this.scheduler = scheduler;
   },
-
 
   // todo: this should be part of a midi group
   sequence: function(events, cb, ticksPerBeat) {
@@ -5060,15 +5099,28 @@ var MidiClock = AudioletClass.extend({
  */
 
 /**
- * Class representing a midi input of a MidiGroup
+ * A MIDIInput accepts a `MIDIGroup` on instantiation,
+ * and exposes a `send` method which maps MIDI messages to the input's `MIDIGroup`.
  */
-var MidiInput = AudioletClass.extend({
+var MIDIInput = AudioletClass.extend({
 
+    /*
+     * Constructor
+     *
+     * @param {MIDIGroup} node The MIDIGroup to map MIDI events onto.
+     */
     constructor: function(node) {
         AudioletClass.apply(this);
         this.node = node;
     },
 
+    /**
+     * Given a MIDI event, `send` will execute a method of the input's `MIDIGroup`,
+     * where the method is a property of the MIDIGroup whose key matches
+     * the event name or type. For instance:
+     * `midiIn.send(new MIDI.Events.NoteOn(60, 127));` will execute
+     * `.noteOn(60, 127);` on the input's MIDIGroup.
+     */
     send: function(e) {
         var name = e.name || e.type,
             node = this.node,
@@ -5082,23 +5134,43 @@ var MidiInput = AudioletClass.extend({
 
 });
 /*!
- * @depends MidiGroup.js
+ * @depends MIDIGroup.js
  */
 
-// a group that creates voices based on midi messages
-var MidiInstrument = MidiGroup.extend({
+/**
+ * A MIDIInstrument is a MIDIGroup with a `midiIn` and
+ * an audio out. It is mainly responsible for managing `noteOn` and `noteOff`
+ * events, and creating new voices accordingly.
+ */
+var MIDIInstrument = MIDIGroup.extend({
 
+  /*
+   * Constructor
+   *
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Array} Voices An array of `MIDIVoice` options.
+   */
   constructor: function(audiolet, Voices) {
-    MidiGroup.apply(this, [audiolet, 1, 1]);
+    MIDIGroup.apply(this, [audiolet, 0, 1]);
     this.Voices = Voices;
     this.Voice = Voices[0];
     this.voices = {};
   },
 
+  /**
+   * If you are extending MIDIInstrument and intend
+   * to route voices through additional nodes before the output,
+   * override this method to specify where the voice should connect to.
+   */
   connectVoice: function(voice) {
     voice.connect(this.outputs[0]);
   },
 
+  /**
+   * Creates a new voice and connects it to the MIDIInstrument's audio output,
+   * playing the note. References to the voices are mapped by the note number
+   * so NoteOff events can remove the proper voice.
+   */
   noteOn: function(e) {
     var Voice = this.Voice,
       voice = new Voice(this.audiolet, e.number, e.velocity);
@@ -5109,6 +5181,10 @@ var MidiInstrument = MidiGroup.extend({
     this.connectVoice(voice);
   },
 
+  /**
+   * Removes the currently playing voice whose note number matches
+   * the noteOff event note number.
+   */
   noteOff: function(e) {
     var voices = this.voices,
       note_voices = voices[e.number],
@@ -5117,6 +5193,11 @@ var MidiInstrument = MidiGroup.extend({
     voice && voice.remove();
   },
 
+  /**
+   * Changes the main Voice class used to create sound for the instrument,
+   * based on the programChange event value and the Voice options passed
+   * into the instruments constructor.
+   */
   programChange: function(e) {
     var Voices = this.Voices,
       Voice = Voices[e.number];
@@ -5126,14 +5207,14 @@ var MidiInstrument = MidiGroup.extend({
 
 });
 /*!
- * @depends MidiGroup.js
+ * @depends MIDIGroup.js
  */
 
 /**
- * A MidiKeyboard simply broadcasts MIDI messages on a single MIDI output,
- * based on events fired from keyboard input.
+ * A MIDIKeyboard send MIDI noteOn and noteOff events
+ * based on keys pressed on the users keyboard.
  */
-var MidiKeyboard = MidiGroup.extend({
+var MIDIKeyboard = MIDIGroup.extend({
 
     /*
      * Constructor
@@ -5141,16 +5222,18 @@ var MidiKeyboard = MidiGroup.extend({
      * @param {Audiolet} audiolet The audiolet object.
      */
     constructor: function(audiolet) {
-        MidiGroup.call(this, audiolet, 0, 1);
+        MIDIGroup.call(this, audiolet);
         this._pressed = {};
         document.addEventListener('keydown', this.tryNoteOn.bind(this));
         document.addEventListener('keyup', this.tryNoteOff.bind(this));
     },
 
-    // this maps e.which values to midi note values.
-    // for instance, 'G' on the keyboard is `70`,
-    // which maps to midi key `71`, or, middle C
-    scale: {
+    /**
+     * This maps e.which values to midi note values.
+     * For instance, 'G' on the keyboard is `70`,
+     * which maps to midi key `71`, or, middle C.
+     */
+    MIDINotesByChar: {
         65: 64,
         87: 65,
         83: 67,
@@ -5169,26 +5252,38 @@ var MidiKeyboard = MidiGroup.extend({
         80: 81
     },
 
+    /**
+     * Triggered on keydown, tryNoteOn sends a NoteOn
+     * event on midiOut if the note isn't already on,
+     * and the key pressed is in our scale.
+     */
     tryNoteOn: function(e) {
-        var eventKey = e.which,
-            midiKey = this.scale[eventKey];
-        if (!this._pressed[eventKey] && midiKey) {
-            this._pressed[eventKey] = true;
+        var char = e.which,
+            midiKey = this.MIDINotesByChar[char];
+        if (!this._pressed[char] && midiKey) {
+            this._pressed[char] = true;
             this.midiOut.send(new MIDI.Events.NoteOn(midiKey, 127));
         }
     },
 
+    /**
+     * Triggered on keyup, tryNoteOff sends a NoteOff
+     * event on midiOut if the note is on.
+     */
     tryNoteOff: function(e) {
-        var eventKey = e.which,
-            midiKey = this.scale[eventKey];
-        if (this._pressed[eventKey] && midiKey) {
-            this._pressed[eventKey] = false;
+        var char = e.which,
+            midiKey = this.MIDINotesByChar[char];
+        if (this._pressed[char]) {
+            this._pressed[char] = false;
             this.midiOut.send(new MIDI.Events.NoteOff(midiKey, 127));
         }
     }
 
 });
-var MidiNotes = {
+/**
+ * MIDINotes maps MIDI note numbers to scientific note values.
+ */
+var MIDINotes = {
     0: 'c-1',
     1: 'c#-1',
     2: 'd-1',
@@ -5323,21 +5418,36 @@ var MidiNotes = {
  */
 
 /**
- * Class representing a midi input of a MidiGroup
+ * A MIDIOutput accepts a `MIDIGroup` on instantiation,
+ * and exposes a `send` method which sends MIDI events to
+ * the input that this output is connected to.
  */
-var MidiOutput = AudioletClass.extend({
+var MIDIOutput = AudioletClass.extend({
 
+    /*
+     * Constructor
+     *
+     * @param {MIDIGroup} node The MIDIGroup the output belongs to.
+     */
     constructor: function(node) {
         AudioletClass.apply(this);
         this.node = node;
     },
 
+    /**
+     * Connects the output to a midi input,
+     * ensuring any value sent on this output
+     * is sent to that input.
+     */
     connect: function(midiIn) {
-        this.midiIn = midiIn;
+        this.connectedTo = midiIn;
     },
 
+    /**
+     * Forward a message to the connected input.
+     */
     send: function(e) {
-        this.midiIn.send(e);
+        this.connectedTo.send(e);
     }
 
 });
@@ -5345,18 +5455,18 @@ var MidiOutput = AudioletClass.extend({
  * @depends ../core/AudioletGroup.js
  */
 
-var MidiPlayer = MidiGroup.extend({
+var MIDIPlayer = MIDIGroup.extend({
 
   constructor: function(audiolet, midi) {
     var header = midi.header,
       track_count = header.trackCount,
-      controller = new MidiGroup(audiolet);
-    MidiGroup.apply(this, [audiolet, 1, 1]);
+      controller = new MIDIGroup(audiolet);
+    MIDIGroup.apply(this, [audiolet, 1, 1]);
     this.midiFile = midi;
     this.instruments = [];
 
     for (var i = 0; i < midi.tracks.length; i++) {
-      var instrument = new MidiInstrument(audiolet, [MidiVoice]);
+      var instrument = new MIDIInstrument(audiolet, [MIDIVoice]);
       this.instruments[i] = instrument;
       this.midiIn.connect(instrument);
       instrument.connect(this.outputs[0]);
@@ -5381,11 +5491,22 @@ var MidiPlayer = MidiGroup.extend({
  * @depends ../core/AudioletGroup.js
  */
 
-var MidiVoice = AudioletGroup.extend({
+/**
+ * A MIDIVoice is an AudioletGroup which generates tones
+ * on it's output by default. MIDIVoices are typically managed by MIDIInstruments.
+ */
+var MIDIVoice = AudioletGroup.extend({
 
+  /*
+   * Constructor
+   *
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} number A MIDI note number to be mapped to a note.
+   * @param {Number} velocity A MIDI velocity, representing gain output level.
+   */
   constructor: function(audiolet, number, velocity) {
     AudioletGroup.apply(this, [audiolet, 0, 1]);
-    this.key = MidiNotes[number];
+    this.key = MIDINotes[number];
     this.source = new Sine(audiolet, teoria.note(this.key).fq());
     this.gain = new Gain(audiolet, (1 / 127) * velocity);
 
