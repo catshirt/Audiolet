@@ -1,5 +1,5 @@
 /*!
- * @depends AudioletClass.js
+ * @depends EventEmitter.js
  */
 
 /**
@@ -10,8 +10,7 @@
  * processed using the generate function, which is called whenever new data is
  * needed.
  */
-var AudioletNode = AudioletClass.extend({
-
+var AudioletNode = EventEmitter.extend({
 
     /**
      * Constructor
@@ -19,11 +18,11 @@ var AudioletNode = AudioletClass.extend({
      * @param {Audiolet} audiolet The audiolet object.
      * @param {Number} numberOfInputs The number of inputs.
      * @param {Number} numberOfOutputs The number of outputs.
-     * @param {Function} [generate] A replacement for the generate function.
+     * @param {Object} parameters Overridden parameter values.
      */
     constructor: function(audiolet, numberOfInputs, numberOfOutputs,
-                            generate) {
-        AudioletClass.call(this);
+                            parameters) {
+        EventEmitter.call(this);
         this.audiolet = audiolet;
 
         this.inputs = [];
@@ -36,8 +35,45 @@ var AudioletNode = AudioletClass.extend({
             this.outputs.push(new AudioletOutput(this, i));
         }
 
-        if (generate) {
-            this.generate = generate;
+        // for each parameter defined in `parameters`, create a
+        // new `AudioletParameter` and assign it as a property of the node.
+        // typically, `get and `set` should be used to access these parameters.
+        var defaults = this.defaults || {};
+        this.parameters = {};
+        for (var name in defaults) {
+            var default_input = defaults[name][0],
+                ctor_val = parameters[name],
+                val = (ctor_val || ctor_val === 0)? ctor_val: defaults[name][1],
+                parameter = new AudioletParameter(this, default_input, val);
+
+            // rebroadcast parameter changes on the node
+            parameter.on('change', function(val) {
+                this.trigger('change:' + name, val);
+            }.bind(this));
+
+            // expose the parameter on the node
+            this.parameters[name] = parameter;
+        }
+    },
+
+    /**
+     * Get a node parameter value by key.
+     */
+    get: function(key) {
+        return this.parameters[key].getValue();
+    },
+
+    /**
+     * Set a node parameter value by key(s).
+     */
+    set: function(key, val) {
+        var params = key;
+        if (typeof key == 'string') {
+            params = {};
+            params[key] = val;
+        }
+        for (var param in params) {
+            this.parameters[param].setValue(params[param]);
         }
     },
 
@@ -49,17 +85,21 @@ var AudioletNode = AudioletClass.extend({
      * @param {Number} [input=0] The index of the input to connect to.
      */
     connect: function(node, output, input) {
+        output = output || 0;
+        input = input || 0;
+
         if (node instanceof AudioletGroup) {
             // Connect to the pass-through node rather than the group
             node = node.inputs[input || 0];
             input = 0;
         }
-        var outputPin = this.outputs[output || 0];
-        var inputPin = node.inputs[input || 0];
+        var outputPin = this.outputs[output];
+        var inputPin = node.inputs[input];
         outputPin.connect(inputPin);
         inputPin.connect(outputPin);
 
         this.audiolet.device.needTraverse = true;
+        this.trigger('connect', node, output, input);
     },
 
     /**
@@ -70,17 +110,21 @@ var AudioletNode = AudioletClass.extend({
      * @param {Number} [input=0] The index of the input to disconnect.
      */
     disconnect: function(node, output, input) {
+        output = output || 0;
+        input = input || 0;
+
         if (node instanceof AudioletGroup) {
             node = node.inputs[input || 0];
             input = 0;
         }
 
-        var outputPin = this.outputs[output || 0];
-        var inputPin = node.inputs[input || 0];
+        var outputPin = this.outputs[output];
+        var inputPin = node.inputs[input];
         inputPin.disconnect(outputPin);
         outputPin.disconnect(inputPin);
 
         this.audiolet.device.needTraverse = true;
+        this.trigger('disconnect', node, output, input);
     },
 
     /**
