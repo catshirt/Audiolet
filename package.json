@@ -1,0 +1,23 @@
+{
+  "name": "audiolet",
+  "version": "1.0.0",
+  "description": "A JavaScript library for real-time audio synthesis and composition from within the browser",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oampo/Audiolet.git"
+  },
+  "scripts": {
+    "compile": "babel src --out-dir lib/ && cp package.json lib/",
+    "prepublish": "npm run compile"
+  },
+  "author": {
+    "name" : "Joe Turner",
+    "email" : "joe@oampo.co.uk",
+    "url" : "http://www.oampo.co.uk"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/oampo/Audiolet/issues"
+  },
+  "homepage": "https://github.com/oampo/Audiolet#readme"
+}

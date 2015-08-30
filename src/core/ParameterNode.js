@@ -1,6 +1,5 @@
-/*!
- * @depends ../core/AudioletNode.js
- */
+import { AudioletNode } from './AudioletNode';
+import { AudioletParameter } from './AudioletParameter';
 
 /**
  * A type of AudioletNode designed to allow AudioletGroups to exactly replicate
@@ -20,30 +19,36 @@
  * **Parameters**
  *
  * - parameter The contained parameter.  Linked to input 0.
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
- * @param {Number} value The initial static value of the parameter.
  */
-var ParameterNode = function(audiolet, value) {
-    AudioletNode.call(this, audiolet, 1, 1);
+class ParameterNode extends AudioletNode {
+
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} value The initial static value of the parameter.
+   */
+  constructor(audiolet, value) {
+    super(audiolet, 1, 1);
     this.parameter = new AudioletParameter(this, 0, value);
-};
-extend(ParameterNode, AudioletNode);
+  }
 
-/**
- * Process samples
- */
-ParameterNode.prototype.generate = function() {
+  /**
+   * Process samples
+   */
+  generate() {
     this.outputs[0].samples[0] = this.parameter.getValue();
-};
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-ParameterNode.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return 'Parameter Node';
-};
+  }
+
+}
+
+export default { ParameterNode };

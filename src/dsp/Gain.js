@@ -1,6 +1,4 @@
-/*!
- * @depends ../operators/Multiply.js
- */
+import { Multiply } from '../operators/Multiply';
 
 /**
  * Simple gain control
@@ -17,24 +15,30 @@
  * **Parameters**
  *
  * - gain The amount of gain.  Linked to input 1.
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
- * @param {Number} [gain=1] Initial gain.
  */
-var Gain = function(audiolet, gain) {
-    // Same DSP as operators/Multiply.js, but different parameter name
-    Multiply.call(this, audiolet, gain);
-    this.gain = this.value;
-};
-extend(Gain, Multiply);
+class Gain extends Multiply {
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-Gain.prototype.toString = function() {
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} [gain=1] Initial gain.
+   */
+  constructor(audiolet, gain) {
+    // Same DSP as operators/Multiply.js, but different parameter name
+    super(audiolet, gain);
+    this.gain = this.value;
+  }
+
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return ('Gain');
-};
+  }
+
+}
+
+export default { Gain };

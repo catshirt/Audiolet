@@ -1,14 +1,19 @@
-var WebKitBufferPlayer = function(audiolet, onComplete) {
-    AudioletNode.call(this, audiolet, 0, 1);
+import { Sink } from '../lib/sink';
+import { AudioletNode } from '../core/AudioletNode';
+
+class WebKitBufferPlayer extends AudioletNode {
+
+  constructor(audiolet, onComplete) {
+    super(audiolet, 0, 1);
     this.onComplete = onComplete;
     this.isWebKit = this.audiolet.device.sink instanceof Sink.sinks.webkit;
     this.ready = false;
 
     // Until we are loaded, output no channels.
     this.setNumberOfOutputChannels(0, 0);
-    
+
     if (!this.isWebKit) {
-        return;
+      return;
     }
 
     this.context = this.audiolet.device.sink._context;
@@ -22,12 +27,11 @@ var WebKitBufferPlayer = function(audiolet, onComplete) {
     this.readPosition = 0;
 
     this.endTime = null;
-};
-extend(WebKitBufferPlayer, AudioletNode);
+  }
 
-WebKitBufferPlayer.prototype.load = function(url, onLoad, onError) {
+  load(url, onLoad, onError) {
     if (!this.isWebKit) {
-        return;
+      return;
     }
 
     this.stop();
@@ -39,9 +43,9 @@ WebKitBufferPlayer.prototype.load = function(url, onLoad, onError) {
     this.xhr.onload = this.onLoad.bind(this, onLoad, onError);
     this.xhr.onerror = onError;
     this.xhr.send();
-};
+  }
 
-WebKitBufferPlayer.prototype.stop = function() {
+  stop() {
     this.ready = false;
     this.loaded = false;
 
@@ -50,29 +54,29 @@ WebKitBufferPlayer.prototype.stop = function() {
     this.endTime = null;
 
     this.setNumberOfOutputChannels(0);
-   
+
     this.disconnectWebKitNodes();
-};
+  }
 
-WebKitBufferPlayer.prototype.disconnectWebKitNodes = function() {
+  disconnectWebKitNodes() {
     if (this.source && this.jsNode) {
-        this.source.disconnect(this.jsNode);
-        this.jsNode.disconnect(this.context.destination);
-        this.source = null;
-        this.jsNode = null;
+      this.source.disconnect(this.jsNode);
+      this.jsNode.disconnect(this.context.destination);
+      this.source = null;
+      this.jsNode = null;
     }
-};
+  }
 
-WebKitBufferPlayer.prototype.onLoad = function(onLoad, onError) {
+  onLoad(onLoad, onError) {
     // Load the buffer into memory for decoding
-//    this.fileBuffer = this.context.createBuffer(this.xhr.response, false);
+  //  this.fileBuffer = this.context.createBuffer(this.xhr.response, false);
     this.context.decodeAudioData(this.xhr.response, function(buffer) {
-        this.onDecode(buffer);
-        onLoad();
+      this.onDecode(buffer);
+      onLoad();
     }.bind(this), onError);
-};
+  }
 
-WebKitBufferPlayer.prototype.onDecode = function(buffer) {
+  onDecode(buffer) {
     this.fileBuffer = buffer;
 
     // Create the WebKit buffer source for playback
@@ -95,36 +99,40 @@ WebKitBufferPlayer.prototype.onDecode = function(buffer) {
     this.endTime = this.context.currentTime + this.fileBuffer.duration;
 
     this.loaded = true;
-};
+  }
 
-WebKitBufferPlayer.prototype.onData = function(event) {
+  onData(event) {
     if (this.loaded) {
-        this.ready = true;
+      this.ready = true;
     }
 
     var numberOfChannels = event.inputBuffer.numberOfChannels;
 
     for (var i=0; i<numberOfChannels; i++) {
-        this.buffers[i] = event.inputBuffer.getChannelData(i);
-        this.readPosition = 0;
+      this.buffers[i] = event.inputBuffer.getChannelData(i);
+      this.readPosition = 0;
     }
-};
+  }
 
-WebKitBufferPlayer.prototype.generate = function() {
+  generate() {
     if (!this.ready) {
-        return;
+      return;
     }
 
     var output = this.outputs[0];
 
     var numberOfChannels = output.samples.length;
     for (var i=0; i<numberOfChannels; i++) {
-        output.samples[i] = this.buffers[i][this.readPosition];
+      output.samples[i] = this.buffers[i][this.readPosition];
     }
     this.readPosition += 1;
 
     if (this.context.currentTime > this.endTime) {
-        this.stop();
-        this.onComplete();
+      this.stop();
+      this.onComplete();
     }
-};
+  }
+
+}
+
+export default { WebKitBufferPlayer };

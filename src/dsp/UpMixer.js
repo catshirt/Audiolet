@@ -1,6 +1,4 @@
-/*!
- * @depends ../core/AudioletNode.js
- */
+import { AudioletNode } from '../core/AudioletNode';
 
 /**
  * Upmix an input to a constant number of output channels
@@ -12,22 +10,24 @@
  * **Outputs**
  *
  * - Upmixed audio
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
- * @param {Number} outputChannels The number of output channels.
  */
-var UpMixer = function(audiolet, outputChannels) {
-    AudioletNode.call(this, audiolet, 1, 1);
-    this.outputs[0].numberOfChannels = outputChannels;
-};
-extend(UpMixer, AudioletNode);
+class UpMixer extends AudioletNode {
 
-/**
- * Process samples
- */
-UpMixer.prototype.generate = function() {
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} outputChannels The number of output channels.
+   */
+  constructor(audiolet, outputChannels) {
+    super(audiolet, 1, 1);
+    this.outputs[0].numberOfChannels = outputChannels;
+  }
+
+  /**
+   * Process samples
+   */
+  generate() {
     var input = this.inputs[0];
     var output = this.outputs[0];
 
@@ -35,21 +35,24 @@ UpMixer.prototype.generate = function() {
     var numberOfOutputChannels = output.samples.length;
 
     if (numberOfInputChannels == numberOfOutputChannels) {
-        output.samples = input.samples;
+      output.samples = input.samples;
     }
     else {
-        for (var i = 0; i < numberOfOutputChannels; i++) {
-            output.samples[i] = input.samples[i % numberOfInputChannels];
-        }
+      for (var i = 0; i < numberOfOutputChannels; i++) {
+        output.samples[i] = input.samples[i % numberOfInputChannels];
+      }
     }
-};
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-UpMixer.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return 'UpMixer';
-};
+  }
 
+}
+
+export default { UpMixer };

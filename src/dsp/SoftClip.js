@@ -1,6 +1,4 @@
-/*!
- * @depends ../core/AudioletNode.js
- */
+import { AudioletNode } from '../core/AudioletNode';
 
 /**
  * A soft-clipper, which distorts at values over +-0.5.
@@ -12,43 +10,48 @@
  * **Outputs**
  *
  * - Clipped audio
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
  */
+class SoftClip extends AudioletNode {
 
-var SoftClip = function(audiolet) {
-    AudioletNode.call(this, audiolet, 1, 1);
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   */
+
+  constructor(audiolet) {
+    super(audiolet, 1, 1);
     this.linkNumberOfOutputChannels(0, 0);
-};
-extend(SoftClip, AudioletNode);
+  }
 
-/**
- * Process samples
- */
-SoftClip.prototype.generate = function() {
+  /**
+   * Process samples
+   */
+  generate() {
     var input = this.inputs[0];
     var output = this.outputs[0];
 
     var numberOfChannels = input.samples.length;
     for (var i = 0; i < numberOfChannels; i++) {
-        var value = input.samples[i];
-        if (value > 0.5 || value < -0.5) {
-            output.samples[i] = (Math.abs(value) - 0.25) / value;
-        }
-        else {
-            output.samples[i] = value;
-        }
+      var value = input.samples[i];
+      if (value > 0.5 || value < -0.5) {
+        output.samples[i] = (Math.abs(value) - 0.25) / value;
+      }
+      else {
+        output.samples[i] = value;
+      }
     }
-};
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-SoftClip.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return ('SoftClip');
-};
+  }
 
+}
+
+export default { SoftClip };

@@ -1,18 +1,20 @@
-/*!
- * @depends AudioletNode.js
- */
+import { Sink } from '../lib/sink';
+import { AudioletNode } from './AudioletNode';
 
 /**
  * Audio output device.  Uses sink.js to output to a range of APIs.
- *
- * @constructor
- * @param {Audiolet} audiolet The audiolet object.
- * @param {Number} [sampleRate=44100] The sample rate to run at.
- * @param {Number} [numberOfChannels=2] The number of output channels.
- * @param {Number} [bufferSize=8192] A fixed buffer size to use.
  */
-function AudioletDevice(audiolet, sampleRate, numberOfChannels, bufferSize) {
-    AudioletNode.call(this, audiolet, 1, 0);
+class AudioletDevice extends AudioletNode {
+
+  /*
+   * @constructor
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} [sampleRate=44100] The sample rate to run at.
+   * @param {Number} [numberOfChannels=2] The number of output channels.
+   * @param {Number} [bufferSize=8192] A fixed buffer size to use.
+   */
+  constructor(audiolet, sampleRate, numberOfChannels, bufferSize) {
+    super(audiolet, 1, 0);
 
     this.sink = Sink(this.tick.bind(this), numberOfChannels, bufferSize,
                      sampleRate);
@@ -29,81 +31,84 @@ function AudioletDevice(audiolet, sampleRate, numberOfChannels, bufferSize) {
 
     this.needTraverse = true;
     this.nodes = [];
-}
-extend(AudioletDevice, AudioletNode);
+  }
 
-/**
-* Overridden tick function. Pulls data from the input and writes it to the
-* device.
-*
-* @param {Float32Array} buffer Buffer to write data to.
-* @param {Number} numberOfChannels Number of channels in the buffer.
-*/
-AudioletDevice.prototype.tick = function(buffer, numberOfChannels) {
+  /**
+  * Overridden tick function. Pulls data from the input and writes it to the
+  * device.
+  *
+  * @param {Float32Array} buffer Buffer to write data to.
+  * @param {Number} numberOfChannels Number of channels in the buffer.
+  */
+  tick(buffer, numberOfChannels) {
     if (!this.paused) {
-        var input = this.inputs[0];
+      var input = this.inputs[0];
 
-        var samplesNeeded = buffer.length / numberOfChannels;
-        for (var i = 0; i < samplesNeeded; i++) {
-            if (this.needTraverse) {
-                this.nodes = this.traverse([]);
-                this.needTraverse = false;
-            }
-
-            // Tick in reverse order up to, but not including this node
-            for (var j = this.nodes.length - 1; j > 0; j--) {
-                this.nodes[j].tick();
-            }
-            // Cut down tick to just sum the input samples 
-            this.createInputSamples();
-
-            for (var j = 0; j < numberOfChannels; j++) {
-                buffer[i * numberOfChannels + j] = input.samples[j];
-            }
-
-            this.writePosition += 1;
+      var samplesNeeded = buffer.length / numberOfChannels;
+      for (var i = 0; i < samplesNeeded; i++) {
+        if (this.needTraverse) {
+          this.nodes = this.traverse([]);
+          this.needTraverse = false;
         }
+
+        // Tick in reverse order up to, but not including this node
+        for (var j = this.nodes.length - 1; j > 0; j--) {
+          this.nodes[j].tick();
+        }
+        // Cut down tick to just sum the input samples
+        this.createInputSamples();
+
+        for (var j = 0; j < numberOfChannels; j++) {
+          buffer[i * numberOfChannels + j] = input.samples[j];
+        }
+
+        this.writePosition += 1;
+      }
     }
-};
+  }
 
-/**
- * Get the current output position
- *
- * @return {Number} Output position in samples.
- */
-AudioletDevice.prototype.getPlaybackTime = function() {
+  /**
+   * Get the current output position
+   *
+   * @return {Number} Output position in samples.
+   */
+  getPlaybackTime() {
     return this.sink.getPlaybackTime();
-};
+  }
 
-/**
- * Get the current write position
- *
- * @return {Number} Write position in samples.
- */
-AudioletDevice.prototype.getWriteTime = function() {
+  /**
+   * Get the current write position
+   *
+   * @return {Number} Write position in samples.
+   */
+  getWriteTime() {
     return this.writePosition;
-};
+  }
 
-/**
- * Pause the output stream, and stop everything from ticking.  The playback
- * time will continue to increase, but the write time will be paused.
- */
-AudioletDevice.prototype.pause = function() {
+  /**
+   * Pause the output stream, and stop everything from ticking.  The playback
+   * time will continue to increase, but the write time will be paused.
+   */
+  pause() {
     this.paused = true;
-};
+  }
 
-/**
- * Restart the output stream.
- */
-AudioletDevice.prototype.play = function() {
-   this.paused = false; 
-};
+  /**
+   * Restart the output stream.
+   */
+  play() {
+    this.paused = false;
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-AudioletDevice.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return 'Audio Output Device';
-};
+  }
+
+}
+
+export default { AudioletDevice };

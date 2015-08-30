@@ -1,6 +1,5 @@
-/*!
- * @depends ../core/AudioletNode.js
- */
+import { AudioletNode } from '../core/AudioletNode';
+import { AudioletParameter } from '../core/AudioletParameter';
 
 /**
  * Saw wave oscillator using a lookup table
@@ -16,23 +15,25 @@
  * **Parameters**
  *
  * - frequency The frequency of the oscillator.  Linked to input 0.
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
- * @param {Number} [frequency=440] Initial frequency.
  */
-var Saw = function(audiolet, frequency) {
-    AudioletNode.call(this, audiolet, 1, 1);
+class Saw extends AudioletNode {
+
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} [frequency=440] Initial frequency.
+   */
+  constructor(audiolet, frequency) {
+    super(audiolet, 1, 1);
     this.frequency = new AudioletParameter(this, 0, frequency || 440);
     this.phase = 0;
-};
-extend(Saw, AudioletNode);
+  }
 
-/**
- * Process samples
- */
-Saw.prototype.generate = function() {
+  /**
+   * Process samples
+   */
+  generate() {
     var output = this.outputs[0];
     var frequency = this.frequency.getValue();
     var sampleRate = this.audiolet.device.sampleRate;
@@ -41,16 +42,19 @@ Saw.prototype.generate = function() {
     this.phase += frequency / sampleRate;
 
     if (this.phase > 1) {
-        this.phase %= 1;
+      this.phase %= 1;
     }
-};
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-Saw.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return 'Saw';
-};
+  }
 
+}
+
+export default { Saw };

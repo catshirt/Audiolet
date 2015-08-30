@@ -3,39 +3,39 @@
  * in a sequence when the next function is called.  Patterns can be embedded
  * inside other patterns to produce complex sequences of values.  When a
  * pattern is finished its next function returns null.
- *
- * @constructor
  */
-var Pattern = function() {
-};
+class Pattern {
 
-/**
- * Default next function.
- *
- * @return {null} Null.
- */
-Pattern.prototype.next = function() {
+  /**
+   * Default next function.
+   *
+   * @return {null} Null.
+   */
+  next() {
     return null;
-};
+  }
 
-/**
- * Return the current value of an item contained in a pattern.
- *
- * @param {Pattern|Object} The item.
- * @return {Object} The value of the item.
- */
-Pattern.prototype.valueOf = function(item) {
+  /**
+   * Return the current value of an item contained in a pattern.
+   *
+   * @param {Pattern|Object} The item.
+   * @return {Object} The value of the item.
+   */
+  valueOf(item) {
     if (item instanceof Pattern) {
-        return (item.next());
+      return (item.next());
     }
     else {
-        return (item);
+      return (item);
     }
-};
+  }
 
-/**
- * Default reset function.
- */
-Pattern.prototype.reset = function() {
-};
+  /**
+   * Default reset function.
+   */
+  reset() {
+  }
 
+}
+
+export default { Pattern };

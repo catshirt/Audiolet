@@ -1,14 +1,18 @@
-/*!
- * @depends Scale.js
- */
+import { Scale } from './Scale';
 
 /**
  * Major scale.
- *
- * @constructor
- * @extends Scale
  */
-var MajorScale = function() {
-    Scale.call(this, [0, 2, 4, 5, 7, 9, 11]);
-};
-extend(MajorScale, Scale);
+class MinorScale extends Scale {
+
+  /*
+   * @constructor
+   * @extends Scale
+   */
+  constructor() {
+    super([0, 2, 4, 5, 7, 9, 11]);
+  }
+
+}
+
+export default { MajorScale };

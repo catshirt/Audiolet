@@ -1,6 +1,5 @@
-/*!
- * @depends ../core/AudioletNode.js
- */
+import { AudioletNode } from '../core/AudioletNode';
+import { AudioletParameter } from '../core/AudioletParameter';
 
 /**
  * Generic biquad filter.  The coefficients (a0, a1, a2, b0, b1 and b2) are set
@@ -19,14 +18,17 @@
  * **Parameters**
  *
  * - frequency The filter frequency.  Linked to input 1.
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
- * @param {Number} frequency The initial frequency.
  */
-var BiquadFilter = function(audiolet, frequency) {
-    AudioletNode.call(this, audiolet, 2, 1);
+class BiquadFilter extends AudioletNode {
+
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} frequency The initial frequency.
+   */
+  constructor(audiolet, frequency) {
+    super(audiolet, 2, 1);
 
     // Same number of output channels as input channels
     this.linkNumberOfOutputChannels(0, 0);
@@ -45,21 +47,20 @@ var BiquadFilter = function(audiolet, frequency) {
     this.a0 = 0;
     this.a1 = 0;
     this.a2 = 0;
-};
-extend(BiquadFilter, AudioletNode);
+  }
 
-/**
- * Calculate the biquad filter coefficients.  This should be overridden.
- *
- * @param {Number} frequency The filter frequency.
- */
-BiquadFilter.prototype.calculateCoefficients = function(frequency) {
-};
+  /**
+   * Calculate the biquad filter coefficients.  This should be overridden.
+   *
+   * @param {Number} frequency The filter frequency.
+   */
+  calculateCoefficients(frequency) {
+  }
 
-/**
- * Process samples
- */
-BiquadFilter.prototype.generate = function() {
+  /**
+   * Process samples
+   */
+  generate() {
     var input = this.inputs[0];
     var output = this.outputs[0]
     var xValueArray = this.xValues;
@@ -68,9 +69,9 @@ BiquadFilter.prototype.generate = function() {
     var frequency = this.frequency.getValue();
 
     if (frequency != this.lastFrequency) {
-        // Recalculate the coefficients
-        this.calculateCoefficients(frequency);
-        this.lastFrequency = frequency;
+      // Recalculate the coefficients
+      this.calculateCoefficients(frequency);
+      this.lastFrequency = frequency;
     }
 
     var a0 = this.a0;
@@ -82,39 +83,43 @@ BiquadFilter.prototype.generate = function() {
 
     var numberOfChannels = input.samples.length;
     for (var i = 0; i < numberOfChannels; i++) {
-        if (i >= xValueArray.length) {
-            xValueArray.push([0, 0]);
-            yValueArray.push([0, 0]);
-        }
+      if (i >= xValueArray.length) {
+        xValueArray.push([0, 0]);
+        yValueArray.push([0, 0]);
+      }
 
-        var xValues = xValueArray[i];
-        var x1 = xValues[0];
-        var x2 = xValues[1];
-        var yValues = yValueArray[i];
-        var y1 = yValues[0];
-        var y2 = yValues[1];
+      var xValues = xValueArray[i];
+      var x1 = xValues[0];
+      var x2 = xValues[1];
+      var yValues = yValueArray[i];
+      var y1 = yValues[0];
+      var y2 = yValues[1];
 
-        var x0 = input.samples[i];
-        var y0 = (b0 / a0) * x0 +
-                 (b1 / a0) * x1 +
-                 (b2 / a0) * x2 -
-                 (a1 / a0) * y1 -
-                 (a2 / a0) * y2;
+      var x0 = input.samples[i];
+      var y0 = (b0 / a0) * x0 +
+               (b1 / a0) * x1 +
+               (b2 / a0) * x2 -
+               (a1 / a0) * y1 -
+               (a2 / a0) * y2;
 
-        output.samples[i] = y0;
+      output.samples[i] = y0;
 
-        xValues[0] = x0;
-        xValues[1] = x1;
-        yValues[0] = y0;
-        yValues[1] = y1;
+      xValues[0] = x0;
+      xValues[1] = x1;
+      yValues[0] = y0;
+      yValues[1] = y1;
     }
-};
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-BiquadFilter.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return 'Biquad Filter';
-};
+  }
+
+}
+
+export default { BiquadFilter };

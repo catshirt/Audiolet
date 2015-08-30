@@ -1,15 +1,18 @@
-/*!
- * @depends Scale.js
- */
+import { Scale } from './Scale';
 
 /**
  * Minor scale.
- *
- * @constructor
- * @extends Scale
  */
+class MinorScale extends Scale {
 
-var MinorScale = function() {
-    Scale.call(this, [0, 2, 3, 5, 7, 8, 10]);
-};
-extend(MinorScale, Scale);
+  /*
+   * @constructor
+   * @extends Scale
+   */
+  constructor() {
+    super([0, 2, 3, 5, 7, 8, 10]);
+  }
+
+}
+
+export default { MinorScale };

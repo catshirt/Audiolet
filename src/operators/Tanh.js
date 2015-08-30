@@ -1,6 +1,4 @@
-/**
- * @depends ../core/AudioletNode.js
- */
+import { AudioletNode } from '../core/AudioletNode';
 
 /**
  * Hyperbolic tangent of values.  Works nicely as a distortion function.
@@ -12,39 +10,43 @@
  * **Outputs**
  *
  * - Tanh audio
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
  */
+class Tanh extends AudioletNode {
 
-var Tanh = function(audiolet) {
-    AudioletNode.call(this, audiolet, 1, 1);
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   */
+  constructor(audiolet) {
+    super(audiolet, 1, 1);
     this.linkNumberOfOutputChannels(0, 0);
-};
-extend(Tanh, AudioletNode);
+  }
 
-/**
- * Process samples
- */
-Tanh.prototype.generate = function() {
+  /**
+   * Process samples
+   */
+  generate() {
     var input = this.inputs[0];
     var output = this.outputs[0];
 
     var numberOfChannels = input.samples.length;
     for (var i = 0; i < numberOfChannels; i++) {
-        var value = input.samples[i];
-        output.samples[i] = (Math.exp(value) - Math.exp(-value)) /
-                            (Math.exp(value) + Math.exp(-value));
-    } 
-};
+      var value = input.samples[i];
+      output.samples[i] = (Math.exp(value) - Math.exp(-value)) /
+                          (Math.exp(value) + Math.exp(-value));
+    }
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-Tanh.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return ('Tanh');
-};
+  }
 
+}
+
+export default { Tanh };

@@ -1,6 +1,5 @@
-/*!
- * @depends ../core/AudioletNode.js
- */
+import { AudioletNode } from '../core/AudioletNode';
+import { AudioletParameter } from '../core/AudioletParameter';
 
 /**
  * Amplitude envelope follower
@@ -19,28 +18,30 @@
  *
  * - attack The attack time of the envelope follower.  Linked to input 1.
  * - release The release time of the envelope follower.  Linked to input 2.
- *
- * @constructor
- * @extends AudioletNode
- * @param {Audiolet} audiolet The audiolet object.
- * @param {Number} [attack=0.01] The initial attack time in seconds.
- * @param {Number} [release=0.01] The initial release time in seconds.
  */
-var Amplitude = function(audiolet, attack, release) {
-    AudioletNode.call(this, audiolet, 3, 1);
+class Amplitude extends AudioletNode {
+
+  /*
+   * @constructor
+   * @extends AudioletNode
+   * @param {Audiolet} audiolet The audiolet object.
+   * @param {Number} [attack=0.01] The initial attack time in seconds.
+   * @param {Number} [release=0.01] The initial release time in seconds.
+   */
+  constructor(audiolet, attack, release) {
+    super(audiolet, 3, 1);
     this.linkNumberOfOutputChannels(0, 0);
 
     this.followers = [];
 
     this.attack = new AudioletParameter(this, 1, attack || 0.01);
     this.release = new AudioletParameter(this, 2, release || 0.01);
-};
-extend(Amplitude, AudioletNode);
+  }
 
-/**
- * Process samples
- */
-Amplitude.prototype.generate = function() {
+  /**
+   * Process samples
+   */
+  generate() {
     var input = this.inputs[0];
     var output = this.outputs[0];
 
@@ -57,28 +58,32 @@ Amplitude.prototype.generate = function() {
 
     var numberOfChannels = input.samples.length;
     for (var i = 0; i < numberOfChannels; i++) {
-        if (i >= numberOfFollowers) {
-            followers.push(0);
-        }
-        var follower = followers[i];
+      if (i >= numberOfFollowers) {
+        followers.push(0);
+      }
+      var follower = followers[i];
 
-        var value = Math.abs(input.samples[i]);
-        if (value > follower) {
-            follower = attack * (follower - value) + value;
-        }
-        else {
-            follower = release * (follower - value) + value;
-        }
-        output.samples[i] = follower;
-        followers[i] = follower;
+      var value = Math.abs(input.samples[i]);
+      if (value > follower) {
+        follower = attack * (follower - value) + value;
+      }
+      else {
+        follower = release * (follower - value) + value;
+      }
+      output.samples[i] = follower;
+      followers[i] = follower;
     }
-};
+  }
 
-/**
- * toString
- *
- * @return {String} String representation.
- */
-Amplitude.prototype.toString = function() {
+  /**
+   * toString
+   *
+   * @return {String} String representation.
+   */
+  toString() {
     return ('Amplitude');
-};
+  }
+
+}
+
+export default { Amplitude };

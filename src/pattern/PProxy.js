@@ -1,42 +1,39 @@
-/*!
- * @depends Pattern.js
- */
+import { Pattern } from './Pattern';
 
 /**
  * Proxy pattern.  Holds a pattern which can safely be replaced by a different
  * pattern while it is running.
- *
- *
- * @constructor
- * @extends Pattern
- * @param {Pattern} pattern The initial pattern.
  */
-var PProxy = function(pattern) {
-    Pattern.call(this);
-    if (pattern) {
-        this.pattern = pattern;
-    }
-};
-extend(PProxy, Pattern);
+class PProxy extends Pattern {
 
-/**
- * Generate the next value in the pattern.
- *
- * @return {Number} The next value.
- */
-PProxy.prototype.next = function() {
+  /*
+   * @constructor
+   * @extends Pattern
+   * @param {Pattern} pattern The initial pattern.
+   */
+  constructor(pattern) {
+    super();
+    if (pattern) {
+      this.pattern = pattern;
+    }
+  }
+
+  /**
+   * Generate the next value in the pattern.
+   *
+   * @return {Number} The next value.
+   */
+  next() {
     var returnValue;
     if (this.pattern) {
-        var returnValue = this.pattern.next();
+      var returnValue = this.pattern.next();
     }
     else {
-        returnValue = null;
+      returnValue = null;
     }
     return returnValue;
-};
+  }
 
-/**
- * Alias
- */
-var Pp = PProxy;
+}
 
+export default { PProxy };
